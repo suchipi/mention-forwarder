@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { createLogger } from "../src/logger.ts";
-import { createReplyMailbox } from "../src/reply.ts";
+import { createReplyMailbox, type ReplyMailbox } from "../src/reply.ts";
 
 const silent = createLogger("error");
 
@@ -31,6 +31,28 @@ async function waitFor(predicate: () => boolean, what: string, timeoutMs = 5000)
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(`timed out waiting for ${what}`);
+}
+
+/**
+ * The directory watcher is armed asynchronously, so a write that lands before it is listening is
+ * never reported. Poking a throwaway file until a poke comes back is what proves it is awake.
+ */
+async function waitUntilWatching(mailbox: ReplyMailbox, debounceMs: number): Promise<void> {
+  const probe = mailbox.pathFor("watcher-probe");
+  let noticed = false;
+  mailbox.track(probe, async () => {
+    noticed = true;
+  });
+
+  const deadline = Date.now() + 5000;
+  while (!noticed && Date.now() < deadline) {
+    appendFileSync(probe, "poke\n");
+    // Each poke needs a quiet stretch longer than the debounce, or the next one only resets it.
+    await new Promise((resolve) => setTimeout(resolve, debounceMs * 3));
+  }
+
+  await mailbox.finish(probe);
+  if (!noticed) throw new Error("timed out waiting for the directory watcher to report a write");
 }
 
 test("pathFor makes a filesystem-safe name from any mention id", () => {
@@ -88,9 +110,10 @@ test("a command that rewrites the file instead of appending still gets its reply
 
 test("the watcher coalesces a burst of writes into one reply", async () => {
   const { mailbox, posted, poster } = setup(60);
+  await waitUntilWatching(mailbox, 60);
+
   const file = mailbox.pathFor("burst");
   mailbox.track(file, poster);
-
   appendFileSync(file, "line one\n");
   appendFileSync(file, "line two\n");
   appendFileSync(file, "line three\n");
