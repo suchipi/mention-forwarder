@@ -1,0 +1,16 @@
+{
+  "command": ["claude", "-p", "{{prompt}}"],
+  "lifecycle": "per-mention",
+  "port": 3000,
+  "logLevel": "info",
+  "maxConcurrentConversations": 4,
+  "reactionEmoji": "eyes",
+  "replyDebounceMs": 1500,
+  "includeRawPayload": false,
+  "logPayloads": false,
+  "timeoutMs": 0,
+  "ignoreBots": true,
+  "ignoreAuthors": [],
+  "github": { "triggerPhrases": ["@my-bot"] },
+  "linear": { "triggerPhrases": ["@my-bot"] }
+}

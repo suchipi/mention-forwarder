@@ -1,0 +1,31 @@
+{
+  "name": "mention-forwarder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Forwards @-mentions from GitHub, Slack, and Linear into a configurable command-line program.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "mention-forwarder": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "node src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "@linear/sdk": "^90.0.0",
+    "@octokit/webhooks": "^14.2.0",
+    "@slack/bolt": "^5.0.0",
+    "express": "^5.1.0",
+    "octokit": "^5.0.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}
