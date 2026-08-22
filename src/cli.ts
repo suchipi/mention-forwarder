@@ -84,7 +84,9 @@ function main(): void {
           : platform === "linear"
             ? config.linear?.triggerPhrases
             : config.slack?.triggerPhrases;
-      const trigger = phrases !== undefined && phrases.length > 0 ? phrases.join(", ") : "native mention";
+      const listed = phrases ?? [];
+      const trigger =
+        platform === "slack" ? ["native mention", ...listed].join(" or ") : listed.join(", ") || "native mention";
       log.info(`  ${platform.padEnd(6)} POST ${path}`, { trigger });
     }
     log.info(`forwarding to: ${config.command.join(" ")}`, {

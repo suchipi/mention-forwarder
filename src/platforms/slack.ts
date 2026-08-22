@@ -15,6 +15,18 @@ const BOLT_LOG_LEVEL: Record<Level, LogLevel> = {
 
 const ANY_USER_MENTION = /<@[A-Z0-9]+(?:\|[^>]*)?>/g;
 
+/** Slack names a subscription differently from the channel type it carries, and the name is what you enable. */
+const MESSAGE_KIND: Record<string, string> = {
+  channel: "message.channels",
+  group: "message.groups",
+  mpim: "message.mpim",
+};
+
+/** The bot's own mention token, or every user's when auth.test never said which id is the bot's. */
+function botMention(botUserId: string | undefined): RegExp {
+  return botUserId === undefined ? ANY_USER_MENTION : new RegExp(`<@${botUserId}(?:\\|[^>]*)?>`, "g");
+}
+
 type Incoming = {
   eventId: string;
   kind: string;
@@ -79,13 +91,6 @@ export function mountSlack(
 
   app.event("app_mention", async ({ event, body, context }) => {
     const text = event.text ?? "";
-    if (settings.triggerPhrases.length > 0 && !trigger.test(text)) {
-      log.debug("app_mention did not match a configured trigger phrase", { id: body.event_id });
-      return;
-    }
-
-    const mentionToken =
-      context.botUserId === undefined ? ANY_USER_MENTION : new RegExp(`<@${context.botUserId}(?:\\|[^>]*)?>`, "g");
 
     await forward({
       eventId: body.event_id,
@@ -96,22 +101,43 @@ export function mountSlack(
       userId: event.user,
       botId: event.bot_id,
       text,
-      prompt: trigger.strip(text.replace(mentionToken, "").trim()),
+      prompt: trigger.strip(text.replace(botMention(context.botUserId), "").trim()),
       conversationKey: `slack:${body.team_id}:${event.channel}:${event.thread_ts ?? event.ts}`,
       replyThreadTs: event.thread_ts ?? event.ts,
     });
   });
 
-  app.event("message", async ({ event, body }) => {
+  app.event("message", async ({ event, body, context }) => {
     // Only plain new messages: a subtype means an edit, a deletion, a join, or a
     // bot post, none of which should start work.
     if (event.subtype !== undefined) return;
-    // Channels and group DMs arrive as app_mention instead. Slack documents that
-    // app_mention is never dispatched for direct messages, so the two handlers
-    // cannot both fire for one message.
-    if (event.channel_type !== "im") return;
 
     const text = event.text ?? "";
+    if (event.channel_type !== "im") {
+      if (!trigger.test(text)) return;
+      // Slack delivers a message that mentions the bot as app_mention as well, in no
+      // guaranteed order, so answering it here too would run the command twice.
+      if (text.replace(botMention(context.botUserId), "") !== text) {
+        log.debug("leaving a message that mentions the bot to the app_mention handler", { id: body.event_id });
+        return;
+      }
+
+      await forward({
+        eventId: body.event_id,
+        kind: MESSAGE_KIND[event.channel_type] ?? `message.${event.channel_type}`,
+        channel: event.channel,
+        ts: event.ts,
+        team: body.team_id,
+        userId: event.user,
+        botId: event.bot_id,
+        text,
+        prompt: trigger.strip(text),
+        conversationKey: `slack:${body.team_id}:${event.channel}:${event.thread_ts ?? event.ts}`,
+        replyThreadTs: event.thread_ts ?? event.ts,
+      });
+      return;
+    }
+
     await forward({
       eventId: body.event_id,
       kind: "message.im",

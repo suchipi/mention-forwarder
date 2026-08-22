@@ -125,7 +125,7 @@ before(async () => {
       maxConcurrentConversations: 2,
       github: { triggerPhrases: ["@my-bot"] },
       linear: { triggerPhrases: ["@my-bot"] },
-      slack: { apiUrl: stub.url },
+      slack: { apiUrl: stub.url, triggerPhrases: ["@my-bot"] },
       logPayloads: true,
     }),
   );
@@ -310,7 +310,7 @@ test("rejects a Linear webhook with a bad signature", async () => {
   assert.equal(records().length, before);
 });
 
-test("forwards a Slack app_mention", async () => {
+test("forwards a Slack app_mention that carries no trigger phrase", async () => {
   const before = records().length;
   const body = JSON.stringify({
     token: "verification",
@@ -424,7 +424,65 @@ test("a DM containing a bot mention keeps the mention in prompt", async () => {
   assert.equal(record.stdin.prompt, record.stdin.text, "nothing is stripped from a DM");
 });
 
-test("ignores channel messages and edited DMs", async () => {
+test("forwards a channel message that carries the trigger phrase but no mention", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvCh2", {
+    type: "message",
+    channel_type: "channel",
+    channel: "C789",
+    user: "U456",
+    text: "@my-bot summarize the backlog",
+    ts: "1700000005.000600",
+    event_ts: "1700000005.000600",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await waitFor(() => records().length === before + 1, "the phrase-only channel message to be forwarded");
+  const record = records().at(-1);
+  assert.ok(record);
+  assert.equal(record.stdin.kind, "message.channels");
+  assert.equal(record.stdin.prompt, "summarize the backlog", "the trigger phrase is stripped");
+  assert.equal(record.stdin.conversationKey, "slack:T123:C789:1700000005.000600");
+});
+
+test("forwards a phrase-carrying message inside a thread into that thread", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvCh3", {
+    type: "message",
+    channel_type: "channel",
+    channel: "C789",
+    user: "U456",
+    text: "@my-bot and this one too",
+    ts: "1700000006.000700",
+    thread_ts: "1700000000.000100",
+    event_ts: "1700000006.000700",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await waitFor(() => records().length === before + 1, "the threaded channel message to be forwarded");
+  const record = records().at(-1);
+  assert.ok(record);
+  assert.equal(record.stdin.conversationKey, "slack:T123:C789:1700000000.000100", "the thread is the conversation");
+});
+
+test("leaves a channel message that both mentions the bot and carries the phrase to app_mention", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvCh4", {
+    type: "message",
+    channel_type: "channel",
+    channel: "C789",
+    user: "U456",
+    text: "<@U999BOT> @my-bot do it once",
+    ts: "1700000007.000800",
+    event_ts: "1700000007.000800",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(records().length, before, "Slack sends app_mention for this one as well, so it must not double up");
+});
+
+test("ignores channel messages with no trigger phrase, and edited DMs", async () => {
   const before = records().length;
 
   const inChannel = slackEnvelope("EvCh1", {

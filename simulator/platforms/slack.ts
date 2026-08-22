@@ -41,7 +41,7 @@ const THREADS: Thread[] = [
       {
         id: "message.channel",
         label: "message (no mention)",
-        hint: "Ordinary channel chatter. The forwarder ignores it, which is the point of sending one.",
+        hint: "Ordinary channel chatter. Forwarded only if it carries @sim-bot, and only if you clear the mention prefix first.",
       },
     ],
   },

@@ -49,7 +49,7 @@ Each thread offers the events that can actually happen there. Between them they 
 | GitHub | Pull request #42 | `issue_comment.created`, `pull_request_review_comment.created`, `pull_request_review.submitted`, `pull_request.opened` |
 | GitHub | Commit | `commit_comment.created` |
 | GitHub | Discussion #3 | `discussion_comment.created`, `discussion.created` |
-| Slack | `#general` | `app_mention`, and a plain message with no mention |
+| Slack | `#general` | `app_mention`, and a plain message with no mention, which is forwarded only if it carries `@sim-bot` |
 | Slack | `#general` thread | `app_mention` inside an existing thread |
 | Slack | Direct message | `message.im` |
 | Linear | ACM-12, ACM-13 | `Comment.create`, a threaded `Comment.create`, `Issue.create` |

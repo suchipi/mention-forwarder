@@ -187,7 +187,7 @@ Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 | `github.path` | `/github/webhooks` | Route GitHub posts to. |
 | `linear.triggerPhrases` | *required if Linear is on* | As above. |
 | `linear.path` | `/linear/webhooks` | Route Linear posts to. |
-| `slack.triggerPhrases` | `[]` | Optional *extra* filter; Slack already tells us when the bot is mentioned. |
+| `slack.triggerPhrases` | `[]` | An optional *second* way in, not a filter: a real mention always counts, and so does any message carrying one of these. Needs extra subscriptions; see [Slack](#slack). |
 | `slack.path` | `/slack/events` | Route Slack posts to. |
 | `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
@@ -231,6 +231,7 @@ Pick one of the two options below. Both use the same code path, so `GITHUB_WEBHO
 2. **OAuth & Permissions → Bot Token Scopes**, add:
    - `app_mentions:read` — required, this is how you receive mentions in channels.
    - `im:history` — required only if you want the bot to answer direct messages.
+   - `channels:history`, `groups:history`, `mpim:history` - required only if you set `slack.triggerPhrases`, and only for the places you want them to work in: public channels, private channels, group DMs.
    - `chat:write` — required only if you want it to reply at all.
    - `reactions:write` — required for the acknowledgement reaction.
    - `users:read` — optional; without it `author` falls back to the raw user id like `U04ABCDEF` instead of a display name.
@@ -239,12 +240,16 @@ Pick one of the two options below. Both use the same code path, so `GITHUB_WEBHO
 4. **Basic Information → Signing Secret** → `.env` as `SLACK_SIGNING_SECRET`.
 5. **Start the forwarder now** — the next step makes Slack call it immediately.
 6. **Event Subscriptions** → toggle on → **Request URL**: `https://your-tunnel.example.com/slack/events`. Slack posts a challenge and expects an answer within seconds; you should see a green *Verified*.
-7. Still on that page, **Subscribe to bot events** → add `app_mention`, and `message.im` too if you want DMs. Reinstall the app if Slack asks.
+7. Still on that page, **Subscribe to bot events** → add `app_mention`; `message.im` too if you want DMs, and `message.channels`, `message.groups`, or `message.mpim` if you set `slack.triggerPhrases`. Reinstall the app if Slack asks.
 8. In Slack, invite the bot to each channel you want it to listen in: `/invite @your-bot`. **If the bot is not in the channel, Slack does not deliver the event** — this is the most common reason nothing happens.
 
-Slack tells us directly when the bot is mentioned, so no trigger phrase is needed. Set `slack.triggerPhrases` only if you want to narrow it further, e.g. requiring `@your-bot please` rather than any mention.
+Slack tells us directly when the bot is mentioned, so no trigger phrase is needed: a real mention always counts, whatever `slack.triggerPhrases` says. Setting phrases adds a second way in rather than narrowing the first, so a channel message carrying one is forwarded even though it mentions nobody. That is how you use the same written phrase you already use on GitHub and Linear, or a word that is nobody's handle at all.
 
-**Direct messages need no mention and no trigger phrase** — a DM is addressed to the bot by definition, so the whole message is treated as the instruction and `prompt` is identical to `text`. Trigger phrases are not applied to DMs even when configured. Only plain new messages count: edits, deletions, and joins are ignored, and messages in channels or group DMs still arrive as `app_mention` rather than as DMs.
+The phrase route only works if Slack sends those messages, which means subscribing to `message.channels`, `message.groups`, or `message.mpim` and adding the matching `*:history` scope. Every message in those conversations then reaches the forwarder, `logPayloads` included, so keep the bot in the channels you actually want it in.
+
+A message that mentions the bot **and** carries a phrase is delivered twice, once as `app_mention` and once as `message.*`. The forwarder keeps the `app_mention` copy and drops the other, so your command still runs once.
+
+**Direct messages need no mention and no trigger phrase** — a DM is addressed to the bot by definition, so the whole message is treated as the instruction and `prompt` is identical to `text`. Trigger phrases are not applied to DMs even when configured. Only plain new messages count: edits, deletions, and joins are ignored. The exemption is one-to-one DMs alone, so a channel or group DM still needs a mention or a trigger phrase.
 
 ### Linear
 
@@ -299,6 +304,7 @@ Two things to keep in mind:
 | GitHub | Comment on a commit | `commit_comment` |
 | GitHub | New discussion, or a comment on one | `discussion`, `discussion_comment` |
 | Slack | Bot mentioned in a channel or thread | `app_mention` |
+| Slack | Message carrying a `slack.triggerPhrases` phrase, mentioning nobody | `message.channels`, `message.groups`, `message.mpim` |
 | Slack | Any message in a DM with the bot — no mention needed | `message.im` |
 | Linear | New comment on an issue | `comment` |
 | Linear | New issue's description | `issue` |
@@ -306,7 +312,7 @@ Two things to keep in mind:
 Deliberately **not** included:
 
 - **Edits.** Only newly created comments, issues, and PRs fire. Editing an old comment to add the phrase will not trigger anything, which also means routine edits can't re-trigger work. The same holds for DMs: an edited message is ignored.
-- **Slack group DMs and channel chatter.** A multi-person DM or a channel still needs a real mention, which arrives as `app_mention`. Only one-to-one DMs skip the mention requirement.
+- **Slack chatter that matches nothing.** Outside a one-to-one DM a message must mention the bot or carry a trigger phrase; with no phrases configured, a real mention is the only way in.
 - **Your command's stdout.** That goes to the log. Replies are opt-in through the reply file, so ordinary logging never leaks into a comment.
 
 Retried deliveries are recognised and dropped, so a slow command won't cause the same mention to run twice.
@@ -350,6 +356,7 @@ GitHub only accepts its own fixed set of reactions. `eyes`, `+1`, `-1`, `laugh`,
 | A reply is posted but the text is empty or partial | Whitespace-only content is skipped. Under `per-conversation`, a reply is only posted once writes settle for `replyDebounceMs`; raise it if your command writes in slow bursts. |
 | `cannot post reply: no GitHub credentials configured` | Reactions and replies both need `GITHUB_TOKEN`, or `GITHUB_APP_ID` plus a private key. |
 | A DM does nothing | The `im:history` scope and the `message.im` bot event subscription are both required, and Slack needs a reinstall after adding them. |
+| A Slack trigger phrase in a channel does nothing | Only a real mention arrives by default. Matching a phrase in a channel also needs the `message.channels` subscription and `channels:history` (`groups`/`mpim` for the other kinds), then a reinstall. |
 | A long-lived command never sees the second mention | It must read stdin line by line and keep running. If it exits after the first mention, check the log for `session ended`. |
 
 Turn on `"logLevel": "debug"` to see every delivery and why any were ignored. Add `"logPayloads": true` to dump the full JSON each platform sent — the fastest way to find out what a field is actually called before writing a trigger phrase against it.
