@@ -188,8 +188,107 @@
         margin-left: auto;
       }
       .body {
-        white-space: pre-wrap;
         overflow-wrap: anywhere;
+      }
+      .body > :first-child {
+        margin-top: 0;
+      }
+      .body > :last-child {
+        margin-bottom: 0;
+      }
+      .body p,
+      .body ul,
+      .body ol,
+      .body pre,
+      .body blockquote,
+      .body table {
+        margin: 0 0 8px;
+      }
+      .body h1,
+      .body h2,
+      .body h3,
+      .body h4,
+      .body h5,
+      .body h6 {
+        margin: 12px 0 6px;
+        line-height: 1.3;
+      }
+      .body h1 {
+        font-size: 1.3em;
+      }
+      .body h2 {
+        font-size: 1.2em;
+      }
+      .body h3 {
+        font-size: 1.1em;
+      }
+      .body h4,
+      .body h5,
+      .body h6 {
+        font-size: 1em;
+      }
+      .body ul,
+      .body ol {
+        padding-left: 22px;
+      }
+      .body li {
+        margin: 2px 0;
+      }
+      .body blockquote {
+        padding-left: 10px;
+        border-left: 3px solid var(--line);
+        color: var(--muted);
+      }
+      .body code {
+        background: var(--chip);
+        border-radius: 4px;
+        padding: 1px 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+      .body pre {
+        padding: 8px;
+        overflow-x: auto;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+      .body pre code {
+        background: none;
+        padding: 0;
+      }
+      .body a {
+        color: var(--accent);
+      }
+      .body img {
+        max-width: 100%;
+        border-radius: 6px;
+      }
+      .body hr {
+        margin: 10px 0;
+        border: none;
+        border-top: 1px solid var(--line);
+      }
+      .body table {
+        display: block;
+        width: max-content;
+        max-width: 100%;
+        overflow-x: auto;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .body th,
+      .body td {
+        border: 1px solid var(--line);
+        padding: 4px 8px;
+        text-align: left;
+      }
+      .body th {
+        background: var(--chip);
+      }
+      .body .mention {
+        color: var(--accent);
+        font-weight: 600;
       }
       .reactions {
         margin-top: 6px;
@@ -291,7 +390,9 @@
       </section>
     </main>
 
-    <script>
+    <script type="module">
+      import { renderMessage } from "./markdown.js";
+
       const EMOJI = {
         eyes: "👀",
         thumbs_up: "👍",
@@ -343,6 +444,10 @@
 
       function threadOf(id) {
         return state.threads.find((thread) => thread.id === id);
+      }
+
+      function prefixFor(id) {
+        return threadOf(id)?.composerPrefix ?? state.composerPrefix;
       }
 
       async function poll() {
@@ -434,7 +539,7 @@ ${escapeHtml(JSON.stringify(message.request.body, null, 2))}</pre>
                 <span class="chip">${escapeHtml(message.kind)}</span>
                 <span class="at">${escapeHtml(timeOf(message.at))}</span>
               </div>
-              <div class="body">${escapeHtml(message.text)}</div>
+              <div class="body">${renderMessage(message.text, state.platform, state.mentionNames)}</div>
               ${reactions ? `<div class="reactions">${reactions}</div>` : ""}
               ${delivery}
               ${payload}
@@ -456,7 +561,7 @@ ${escapeHtml(JSON.stringify(message.request.body, null, 2))}</pre>
         elements.author.innerHTML = state.authors
           .map((author) => `<option value="${escapeHtml(author.id)}">${escapeHtml(author.name)}</option>`)
           .join("");
-        elements.text.value = state.composerPrefix;
+        elements.text.value = prefixFor(selected);
         showHint();
       }
 
@@ -494,7 +599,7 @@ ${escapeHtml(JSON.stringify(message.request.body, null, 2))}</pre>
             const error = await response.json().catch(() => ({ error: response.statusText }));
             alert(`Could not send: ${error.error}`);
           } else {
-            elements.text.value = state.composerPrefix;
+            elements.text.value = prefixFor(selected);
           }
         } finally {
           elements.send.disabled = false;

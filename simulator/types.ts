@@ -7,7 +7,14 @@ export type Author = { id: string; name: string; isBot: boolean };
 /** One webhook a thread can send. `id` is the platform's own event name, shown verbatim in the UI. */
 export type PostKind = { id: string; label: string; hint: string };
 
-export type Thread = { id: string; title: string; subtitle: string; kinds: PostKind[] };
+export type Thread = {
+  id: string;
+  title: string;
+  subtitle: string;
+  kinds: PostKind[];
+  /** Overrides the platform's prefix, for a thread that reaches the bot without a mention. */
+  composerPrefix?: string;
+};
 
 /** The forwarder's answer to a webhook, so a rejected delivery is visible in the UI rather than only in a log. */
 export type Delivery = { ok: boolean; status: number | null; detail: string };
@@ -38,6 +45,8 @@ export type PlatformSim = {
   authors: Author[];
   /** Prefilled into the composer so a message triggers the forwarder without extra typing. */
   composerPrefix: string;
+  /** How the ids written into message text read once rendered, for a platform that mentions by id. */
+  mentionNames?: Record<string, string>;
   /** Where the forwarder must post its webhooks. */
   webhookUrl: string;
   /** Path the stand-in platform API is served under. */

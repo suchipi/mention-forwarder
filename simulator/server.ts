@@ -5,6 +5,7 @@ import type { Store } from "./store.ts";
 import type { PlatformSim, PostRequest } from "./types.ts";
 
 const UI_PAGE = fileURLToPath(new URL("./ui.html", import.meta.url));
+const MARKDOWN_MODULE = fileURLToPath(new URL("./markdown.js", import.meta.url));
 
 /** Everything the page needs to explain the setup it is driving. */
 export type SimInfo = {
@@ -24,6 +25,10 @@ export function createSimServer(sim: PlatformSim, store: Store, info: SimInfo, l
     response.sendFile(UI_PAGE);
   });
 
+  app.get("/markdown.js", (_request, response) => {
+    response.sendFile(MARKDOWN_MODULE);
+  });
+
   app.get("/sim/state", (_request, response) => {
     response.json({
       platform: sim.platform,
@@ -31,6 +36,7 @@ export function createSimServer(sim: PlatformSim, store: Store, info: SimInfo, l
       threads: sim.threads,
       authors: sim.authors,
       composerPrefix: sim.composerPrefix,
+      mentionNames: sim.mentionNames ?? {},
       messages: store.messages,
       info,
     });

@@ -56,6 +56,8 @@ Each thread offers the events that can actually happen there. Between them they 
 
 The author picker includes a bot, which is how you check that `ignoreBots` does what you expect. Every message card shows the response the forwarder gave, and expands to the exact signed payload that was sent.
 
+Bodies are rendered the way the platform being imitated would render them: CommonMark on GitHub and Linear, and Slack's own mrkdwn, where `*one asterisk*` is bold, `**two**` is not, and there are no headings or lists. The composer starts each thread with whatever it takes to reach the bot there, which in a Slack DM is nothing at all.
+
 Replies find their way back to the right thread because the forwarder is pointed at the simulator's stand-in API rather than the real one, through `github.apiUrl`, `slack.apiUrl`, and `linear.apiUrl`. The page says so in a banner if those do not match, and so does the simulator at startup. Pointing `github.apiUrl` away from github.com also lifts Octokit's write pacing, so GitHub replies arrive as promptly as the other two rather than three seconds apart.
 
 ## Options
@@ -89,6 +91,7 @@ To try your own command rather than the echo responder, point `command` in `simu
 | `store.ts` | The threads and messages, in memory. Restarting starts over. |
 | `platforms/*.ts` | One per platform: its threads, its signed payloads, and its stand-in API. |
 | `ui.html` | The whole page. No build step, no dependencies. |
+| `markdown.js` | Turns a message body into HTML, in the notation its platform uses. |
 | `echo-command.ts` | The default command: quotes the prompt back as a reply. |
 
-The round trip is covered automatically too: `test/simulator.test.ts` boots the forwarder and one simulator per platform, then asserts that every event a thread offers reaches the command, that the reaction and reply come back, and that bots and untriggered messages are ignored.
+The round trip is covered automatically too: `test/simulator.test.ts` boots the forwarder and one simulator per platform, then asserts that every event a thread offers reaches the command, that the reaction and reply come back, and that bots and untriggered messages are ignored. `test/markdown.test.ts` covers the two notations on their own.

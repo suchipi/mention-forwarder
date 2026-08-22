@@ -68,6 +68,7 @@ const THREADS: Thread[] = [
         hint: "A DM to the bot. No mention needed, and the whole text becomes the prompt.",
       },
     ],
+    composerPrefix: "",
   },
 ];
 
@@ -231,6 +232,11 @@ export function createSlackSim(options: {
     authors: AUTHORS,
     // Slack sends the bot's id, not its handle; the forwarder strips exactly this token.
     composerPrefix: `<@${BOT_USER}> `,
+    mentionNames: {
+      ...Object.fromEntries(AUTHORS.map((author) => [author.id, author.name])),
+      [BOT_USER]: botName,
+      [CHANNEL]: "general",
+    },
     webhookUrl,
     apiMount: SLACK_API_MOUNT,
     expectedApiUrl: `${simUrl}${SLACK_API_MOUNT}/`,
