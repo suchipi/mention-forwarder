@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mention-forwarder simulator</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#128038;</text></svg>"
+    />
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --ink: #16191d;
+        --muted: #6b7280;
+        --line: #dfe3e8;
+        --accent: #2b6cb0;
+        --accent-soft: #eaf2fb;
+        --ok: #227a4b;
+        --bad: #b02a37;
+        --chip: #eef0f3;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14171a;
+          --panel: #1b1f24;
+          --ink: #e6e8ea;
+          --muted: #9aa3ad;
+          --line: #2b3138;
+          --accent: #6aa9e9;
+          --accent-soft: #1e2937;
+          --ok: #6fcf97;
+          --bad: #f08a8a;
+          --chip: #262b31;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--ink);
+        font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+      }
+      header .platform {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+      }
+      header .route {
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+      header .spacer {
+        flex: 1;
+      }
+      #status.offline {
+        color: var(--bad);
+      }
+      #status.online {
+        color: var(--ok);
+      }
+      button {
+        font: inherit;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      #banner {
+        display: none;
+        padding: 8px 16px;
+        background: var(--accent-soft);
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      #threads {
+        width: 280px;
+        flex: none;
+        overflow-y: auto;
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+      }
+      #threads button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: none;
+        border-bottom: 1px solid var(--line);
+        border-radius: 0;
+        padding: 12px 14px;
+        background: transparent;
+      }
+      #threads button.selected {
+        background: var(--accent-soft);
+        box-shadow: inset 3px 0 0 var(--accent);
+      }
+      #threads .name {
+        font-weight: 600;
+      }
+      #threads .meta {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #conversation {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      #messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .empty {
+        color: var(--muted);
+        margin: auto;
+      }
+      .message {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        max-width: 780px;
+      }
+      .message.received {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        align-self: flex-end;
+      }
+      .message .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+      }
+      .who {
+        font-weight: 600;
+      }
+      .chip {
+        background: var(--chip);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 1px 8px;
+        font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .at {
+        color: var(--muted);
+        font-size: 11px;
+        margin-left: auto;
+      }
+      .body {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .reactions {
+        margin-top: 6px;
+        display: flex;
+        gap: 6px;
+      }
+      .reaction {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0 8px;
+        font-size: 12px;
+      }
+      .delivery {
+        margin-top: 8px;
+        font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .delivery.ok {
+        color: var(--ok);
+      }
+      .delivery.bad {
+        color: var(--bad);
+      }
+      details {
+        margin-top: 6px;
+      }
+      details summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      details pre {
+        max-height: 320px;
+        overflow: auto;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 12px;
+      }
+      #composer {
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #composer .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      select,
+      textarea {
+        font: inherit;
+        color: var(--ink);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 8px;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 68px;
+        width: 100%;
+      }
+      #hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="platform" id="platform">…</span>
+      <span class="route" id="route"></span>
+      <span class="spacer"></span>
+      <span id="status" class="offline">connecting</span>
+      <button id="clear">Clear</button>
+    </header>
+    <div id="banner"></div>
+    <main>
+      <nav id="threads"></nav>
+      <section id="conversation">
+        <div id="messages"></div>
+        <form id="composer">
+          <div class="row">
+            <select id="kind"></select>
+            <select id="author"></select>
+            <span id="hint"></span>
+          </div>
+          <textarea id="text" placeholder="Write a message, then send it as the selected event"></textarea>
+          <div class="row">
+            <button type="submit" class="primary" id="send">Send</button>
+            <span id="hintKeys" class="chip">cmd/ctrl + enter</span>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const EMOJI = {
+        eyes: "👀",
+        thumbs_up: "👍",
+        "+1": "👍",
+        thumbsup: "👍",
+        thumbs_down: "👎",
+        "-1": "👎",
+        laugh: "😄",
+        smile: "😄",
+        hooray: "🎉",
+        tada: "🎉",
+        confused: "😕",
+        heart: "❤️",
+        rocket: "🚀",
+      };
+
+      const elements = {
+        platform: document.getElementById("platform"),
+        route: document.getElementById("route"),
+        status: document.getElementById("status"),
+        banner: document.getElementById("banner"),
+        threads: document.getElementById("threads"),
+        messages: document.getElementById("messages"),
+        composer: document.getElementById("composer"),
+        kind: document.getElementById("kind"),
+        author: document.getElementById("author"),
+        hint: document.getElementById("hint"),
+        text: document.getElementById("text"),
+        send: document.getElementById("send"),
+        clear: document.getElementById("clear"),
+      };
+
+      let state = null;
+      let seenVersion = -1;
+      let selected = localStorage.getItem("mention-forwarder-sim-thread");
+      let composerThread = null;
+
+      function escapeHtml(value) {
+        return String(value).replace(
+          /[&<>"']/g,
+          (character) =>
+            ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character],
+        );
+      }
+
+      function timeOf(iso) {
+        return new Date(iso).toLocaleTimeString();
+      }
+
+      function threadOf(id) {
+        return state.threads.find((thread) => thread.id === id);
+      }
+
+      async function poll() {
+        let next;
+        try {
+          next = await (await fetch("/sim/state")).json();
+        } catch {
+          elements.status.textContent = "simulator offline";
+          elements.status.className = "offline";
+          return;
+        }
+        elements.status.textContent = "connected";
+        elements.status.className = "online";
+        if (next.version === seenVersion && state !== null) return;
+        seenVersion = next.version;
+        state = next;
+        render();
+      }
+
+      function render() {
+        elements.platform.textContent = state.platform;
+        elements.route.textContent = `webhooks → ${state.info.webhookUrl}`;
+
+        if (state.info.configuredApiUrl !== state.info.expectedApiUrl) {
+          elements.banner.style.display = "block";
+          elements.banner.innerHTML =
+            `Replies will not come back here: the forwarder's <code>${escapeHtml(state.platform)}.apiUrl</code> is ` +
+            `<code>${escapeHtml(state.info.configuredApiUrl ?? "unset")}</code>. Set it to ` +
+            `<code>${escapeHtml(state.info.expectedApiUrl)}</code> and restart the forwarder.`;
+        } else {
+          elements.banner.style.display = "none";
+        }
+
+        if (threadOf(selected) === undefined) selected = state.threads[0]?.id ?? null;
+
+        elements.threads.innerHTML = state.threads
+          .map((thread) => {
+            const count = state.messages.filter((message) => message.threadId === thread.id).length;
+            return `<button data-thread="${escapeHtml(thread.id)}" class="${thread.id === selected ? "selected" : ""}">
+              <div class="name">${escapeHtml(thread.title)}</div>
+              <div class="meta">${escapeHtml(thread.subtitle)}${count > 0 ? ` · ${count}` : ""}</div>
+            </button>`;
+          })
+          .join("");
+
+        renderMessages();
+        if (composerThread !== selected) renderComposer();
+      }
+
+      function renderMessages() {
+        const list = state.messages.filter((message) => message.threadId === selected);
+        const atBottom =
+          elements.messages.scrollTop + elements.messages.clientHeight >= elements.messages.scrollHeight - 60;
+
+        if (list.length === 0) {
+          elements.messages.innerHTML = `<p class="empty">Nothing posted in this thread yet.</p>`;
+          return;
+        }
+
+        elements.messages.innerHTML = list
+          .map((message) => {
+            const reactions = message.reactions
+              .map((name) => `<span class="reaction">${EMOJI[name] ?? ""} ${escapeHtml(name)}</span>`)
+              .join("");
+            const delivery =
+              message.delivery === null
+                ? message.direction === "sent"
+                  ? `<div class="delivery">sending…</div>`
+                  : ""
+                : `<div class="delivery ${message.delivery.ok ? "ok" : "bad"}">
+                     ${message.delivery.ok ? "delivered" : "rejected"} ·
+                     ${escapeHtml(message.delivery.status ?? "no response")}
+                     ${message.delivery.detail ? `· ${escapeHtml(message.delivery.detail)}` : ""}
+                   </div>`;
+            const payload =
+              message.request === null
+                ? ""
+                : `<details>
+                     <summary>webhook payload</summary>
+                     <pre>POST ${escapeHtml(message.request.url)}
+${escapeHtml(Object.entries(message.request.headers).map(([name, value]) => `${name}: ${value}`).join("\n"))}
+
+${escapeHtml(JSON.stringify(message.request.body, null, 2))}</pre>
+                   </details>`;
+            return `<article class="message ${message.direction}">
+              <div class="top">
+                <span class="who">${escapeHtml(message.author)}</span>
+                ${message.isBot ? `<span class="chip">bot</span>` : ""}
+                <span class="chip">${escapeHtml(message.kind)}</span>
+                <span class="at">${escapeHtml(timeOf(message.at))}</span>
+              </div>
+              <div class="body">${escapeHtml(message.text)}</div>
+              ${reactions ? `<div class="reactions">${reactions}</div>` : ""}
+              ${delivery}
+              ${payload}
+            </article>`;
+          })
+          .join("");
+
+        if (atBottom) elements.messages.scrollTop = elements.messages.scrollHeight;
+      }
+
+      function renderComposer() {
+        const thread = threadOf(selected);
+        if (thread === undefined) return;
+        composerThread = selected;
+
+        elements.kind.innerHTML = thread.kinds
+          .map((kind) => `<option value="${escapeHtml(kind.id)}">${escapeHtml(kind.label)}</option>`)
+          .join("");
+        elements.author.innerHTML = state.authors
+          .map((author) => `<option value="${escapeHtml(author.id)}">${escapeHtml(author.name)}</option>`)
+          .join("");
+        elements.text.value = state.composerPrefix;
+        showHint();
+      }
+
+      function showHint() {
+        const thread = threadOf(selected);
+        const kind = thread?.kinds.find((candidate) => candidate.id === elements.kind.value);
+        elements.hint.textContent = kind?.hint ?? "";
+      }
+
+      elements.threads.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-thread]");
+        if (button === null) return;
+        selected = button.dataset.thread;
+        localStorage.setItem("mention-forwarder-sim-thread", selected);
+        render();
+      });
+
+      elements.kind.addEventListener("change", showHint);
+
+      elements.composer.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        elements.send.disabled = true;
+        try {
+          const response = await fetch("/sim/post", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              threadId: selected,
+              kind: elements.kind.value,
+              authorId: elements.author.value,
+              text: elements.text.value,
+            }),
+          });
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: response.statusText }));
+            alert(`Could not send: ${error.error}`);
+          } else {
+            elements.text.value = state.composerPrefix;
+          }
+        } finally {
+          elements.send.disabled = false;
+          poll();
+        }
+      });
+
+      elements.text.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) elements.composer.requestSubmit();
+      });
+
+      elements.clear.addEventListener("click", async () => {
+        await fetch("/sim/clear", { method: "POST" });
+        poll();
+      });
+
+      poll();
+      setInterval(poll, 1000);
+    </script>
+  </body>
+</html>

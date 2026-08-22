@@ -189,8 +189,9 @@ Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 | `linear.path` | `/linear/webhooks` | Route Linear posts to. |
 | `slack.triggerPhrases` | `[]` | Optional *extra* filter; Slack already tells us when the bot is mentioned. |
 | `slack.path` | `/slack/events` | Route Slack posts to. |
-| `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server. |
+| `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
+| `linear.apiUrl` | Linear's own | Override the Linear GraphQL endpoint. For a local stub. |
 
 Trigger phrases are matched case-insensitively and only as whole tokens: `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`.
 
@@ -360,7 +361,14 @@ npm test        # unit tests, plus an end-to-end run against signed webhooks fro
 npm run typecheck
 ```
 
-The end-to-end test boots the real CLI, posts genuinely signed GitHub, Slack, and Linear payloads at it, and asserts on what the child process received through all three channels.
+The end-to-end test boots the real CLI, posts genuinely signed GitHub, Slack, and Linear payloads at it, and asserts on what the child process received through all three channels. A second one drives the same CLI through the simulator below, covering every event each platform can send, the acknowledgement reaction, and the reply on its way back.
+
+To drive the webhooks by hand instead, the [simulator](simulator/README.md) stands in for whichever platform you point it at, with a web page of threads you can post into. Replies and reactions come back through a stand-in platform API, so the whole round trip works without a real account or a tunnel.
+
+```sh
+npm run sim:forwarder            # the forwarder, configured to talk to the simulator
+npm run sim -- --platform github # the simulator, at http://127.0.0.1:4000
+```
 
 | Path | Role |
 | --- | --- |
@@ -371,3 +379,4 @@ The end-to-end test boots the real CLI, posts genuinely signed GitHub, Slack, an
 | `src/queue.ts` | Serial within a conversation, parallel across conversations. |
 | `src/runner.ts` | Spawns the command and wires up argv, stdin, and env, for both lifecycles. |
 | `src/reply.ts` | Watches reply files and posts what a command appends to them. |
+| `simulator/` | A side app that imitates one platform end-to-end, for testing by hand. |

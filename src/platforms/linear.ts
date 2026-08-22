@@ -28,7 +28,10 @@ export function createLinearMiddleware(
   const webhooks = new LinearWebhookClient(settings.webhookSecret);
   const handler = webhooks.createHandler();
   const trigger = createTriggerMatcher(settings.triggerPhrases);
-  const linear = settings.apiKey === undefined ? undefined : new LinearClient({ apiKey: settings.apiKey });
+  const linear =
+    settings.apiKey === undefined
+      ? undefined
+      : new LinearClient({ apiKey: settings.apiKey, ...(settings.apiUrl === undefined ? {} : { apiUrl: settings.apiUrl }) });
   const emoji = reactionEmoji.replace(/^:|:$/g, "");
 
   async function postReply(target: { issueId: string; parentId?: string }, body: string): Promise<void> {

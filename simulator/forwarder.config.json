@@ -1,0 +1,11 @@
+{
+  "command": ["node", "simulator/echo-command.ts"],
+  "port": 3000,
+  "logLevel": "info",
+  "logPayloads": false,
+  "lifecycle": "per-mention",
+  "replyDir": "simulator/.replies",
+  "github": { "triggerPhrases": ["@sim-bot"], "apiUrl": "http://127.0.0.1:4000/api/github" },
+  "linear": { "triggerPhrases": ["@sim-bot"], "apiUrl": "http://127.0.0.1:4000/api/linear/graphql" },
+  "slack": { "apiUrl": "http://127.0.0.1:4000/api/slack/" }
+}

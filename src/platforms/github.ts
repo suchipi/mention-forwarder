@@ -22,6 +22,9 @@ const REACTION_CONTENT: Record<string, string> = {
   rocket: "ROCKET",
 };
 
+/** Octokit's own base URL. Anything else is a stub or an Enterprise server, not github.com. */
+const PUBLIC_API_URL = "https://api.github.com";
+
 export function githubReactionFor(emoji: string): string | undefined {
   return REACTION_CONTENT[emoji.replace(/^:|:$/g, "").toLowerCase()];
 }
@@ -71,7 +74,13 @@ export function createGitHubMiddleware(
   const webhooks = new Webhooks({ secret: settings.webhookSecret });
   const trigger = createTriggerMatcher(settings.triggerPhrases);
 
-  const ScopedOctokit = settings.apiUrl === undefined ? Octokit : Octokit.defaults({ baseUrl: settings.apiUrl });
+  // Octokit paces writes for github.com's own rate limits: a second between them, three when the
+  // write triggers a notification. Aimed anywhere else that pacing protects nothing and only costs
+  // a reply the wait, so it comes off with the base URL.
+  const ScopedOctokit =
+    settings.apiUrl === undefined || settings.apiUrl === PUBLIC_API_URL
+      ? Octokit
+      : Octokit.defaults({ baseUrl: settings.apiUrl, throttle: { enabled: false } });
   const app =
     settings.auth.kind === "app"
       ? new App({ appId: settings.auth.appId, privateKey: settings.auth.privateKey, Octokit: ScopedOctokit })

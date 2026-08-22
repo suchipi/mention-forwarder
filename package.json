@@ -12,6 +12,8 @@
   },
   "scripts": {
     "start": "node src/cli.ts",
+    "sim": "node simulator/cli.ts",
+    "sim:forwarder": "node src/cli.ts --config simulator/forwarder.config.json --env-file simulator/forwarder.env",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/*.test.ts\""
   },

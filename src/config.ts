@@ -21,6 +21,11 @@ const slackOverrides = platformOverrides.extend({
   apiUrl: z.string().url().optional(),
 });
 
+const linearOverrides = platformOverrides.extend({
+  /** Override the Linear GraphQL endpoint; for a local stub. */
+  apiUrl: z.string().url().optional(),
+});
+
 const fileSchema = z.strictObject({
   command: z.array(z.string()).min(1),
   cwd: z.string().optional(),
@@ -40,7 +45,7 @@ const fileSchema = z.strictObject({
   ignoreAuthors: z.array(z.string()).default([]),
   github: githubOverrides.optional(),
   slack: slackOverrides.optional(),
-  linear: platformOverrides.optional(),
+  linear: linearOverrides.optional(),
 });
 
 export type GitHubAuth =
@@ -69,6 +74,7 @@ export type LinearSettings = {
   triggerPhrases: string[];
   webhookSecret: string;
   apiKey: string | undefined;
+  apiUrl: string | undefined;
 };
 
 export type Config = {
@@ -232,6 +238,7 @@ export function loadConfig(path: string): Config {
             triggerPhrases: requireTriggerPhrases("linear", file.linear?.triggerPhrases),
             webhookSecret: linearSecret,
             apiKey: env("LINEAR_API_KEY"),
+            apiUrl: file.linear?.apiUrl,
           },
   };
 }
