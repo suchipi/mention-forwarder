@@ -23,6 +23,8 @@ export function createServer(
   // Note the absence of any app-wide body parser: GitHub and Linear both verify
   // signatures over the raw request stream and must read it themselves.
 
+  app.disable("x-powered-by");
+
   // Without this an X-Forwarded-For header from anywhere would be believed, and
   // the source allowlist below could be talked out of its answer by any caller.
   app.set("trust proxy", config.trustedProxies);

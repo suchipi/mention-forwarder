@@ -198,6 +198,7 @@ function githubIssueComment(commentBody: string): string {
 test("the root path answers nothing and names no platforms", async () => {
   const response = await fetch(`http://127.0.0.1:${port}/`);
   assert.equal(response.status, 404);
+  assert.equal(response.headers.get("x-powered-by"), null);
 
   const body = await response.text();
   for (const platform of ["github", "linear", "slack"]) {
