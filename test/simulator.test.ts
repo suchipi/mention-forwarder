@@ -325,6 +325,14 @@ test("slack: bots and channel messages without a mention are ignored", async () 
   await ignored("slack", "general", "message.channel", "U0LILY", "slack with no mention", "slack with no mention");
 });
 
+test("slack: asking for app_mention without the mention sends a plain message", async () => {
+  await ignored("slack", "general", "app_mention", "U0LILY", "slack chatter in a channel", "slack chatter in a channel");
+  await ignored("slack", "general-thread", "app_mention", "U0LILY", "slack chatter in a thread", "slack chatter in a thread");
+
+  const inChannel = (await messagesIn("slack", "general")).find((message) => message.text === "slack chatter in a channel");
+  assert.equal(inChannel?.kind, "message.channel", "the simulator records what Slack would have sent");
+});
+
 test("linear: every event a thread offers reaches the command", async () => {
   const comment = await forwarded("linear", "acm-12", "Comment.create", "user-lily", "linear comment");
   assert.equal(comment.platform, "linear");

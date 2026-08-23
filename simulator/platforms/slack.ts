@@ -12,6 +12,8 @@ export const SLACK_API_MOUNT = "/api/slack";
 const TEAM = "T0SIMTEAM";
 const BOT_USER = "U0SIMBOT";
 const BOT_ID = "B0SIMBOT";
+/** Every spelling Slack gives the bot's mention, matching what the forwarder strips. */
+const BOT_MENTION = new RegExp(`<@${BOT_USER}(?:\\|[^>]*)?>`);
 const CHANNEL = "C0GENERAL";
 const DM_CHANNEL = "D0LILY";
 /** Stands for a message that was already in the channel, so its thread exists before anything is posted. */
@@ -37,7 +39,11 @@ const THREADS: Thread[] = [
     title: "#general",
     subtitle: `${CHANNEL} · channel`,
     kinds: [
-      { id: "app_mention", label: "app_mention", hint: "A message mentioning the bot. Answered in a new thread." },
+      {
+        id: "app_mention",
+        label: "app_mention",
+        hint: "A message mentioning the bot. Answered in a new thread. Clear the mention and Slack sends a plain message instead, so this does too.",
+      },
       {
         id: "message.channel",
         label: "message (no mention)",
@@ -53,7 +59,7 @@ const THREADS: Thread[] = [
       {
         id: "app_mention",
         label: "app_mention (in thread)",
-        hint: "A mention inside an existing thread. Answered in that same thread.",
+        hint: "A mention inside an existing thread. Answered in that same thread. Clear the mention and Slack sends a plain message instead, so this does too.",
       },
     ],
   },
@@ -101,7 +107,21 @@ function eventFor(kind: string, place: Place, author: Author, text: string, ts: 
   if (kind === "message.im") {
     return { type: "message", channel_type: "im", ...common };
   }
-  return { type: "message", channel_type: "channel", ...common };
+  return {
+    type: "message",
+    channel_type: "channel",
+    ...common,
+    ...(place.threadTs === undefined ? {} : { thread_ts: place.threadTs }),
+  };
+}
+
+/**
+ * Slack decides the event from the message, not from what the sender meant by
+ * it: app_mention exists only when the bot's own token is in the text, and
+ * anything else in a channel is a plain message.
+ */
+function kindFor(kind: string, text: string): string {
+  return kind === "app_mention" && !BOT_MENTION.test(text) ? "message.channel" : kind;
 }
 
 function createApi(store: Store, botName: string, log: Logger): Router {
@@ -242,12 +262,13 @@ export function createSlackSim(options: {
     expectedApiUrl: `${simUrl}${SLACK_API_MOUNT}/`,
     api: createApi(store, botName, log),
 
-    async post({ threadId, kind, authorId, text }: PostRequest) {
+    async post({ threadId, kind: requested, authorId, text }: PostRequest) {
       const place = PLACES[threadId];
       const author = AUTHORS.find((candidate) => candidate.id === authorId);
       if (place === undefined) throw new Error(`unknown thread ${threadId}`);
       if (author === undefined) throw new Error(`unknown author ${authorId}`);
 
+      const kind = kindFor(requested, text);
       const ts = nextTs();
       const payload = {
         token: "sim-verification-token",

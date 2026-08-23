@@ -56,6 +56,8 @@ Each thread offers the events that can actually happen there. Between them they 
 
 The author picker includes a bot, which is how you check that `ignoreBots` does what you expect. Every message card shows the response the forwarder gave, and expands to the exact signed payload that was sent.
 
+Slack picks the event from the message rather than from the dropdown, and so does this: asking for `app_mention` in a channel whose text does not carry `<@U0SIMBOT>` sends a plain `message` instead, which is what Slack would have delivered. The card shows the event that actually went out.
+
 Bodies are rendered the way the platform being imitated would render them: CommonMark on GitHub and Linear, and Slack's own mrkdwn, where `*one asterisk*` is bold, `**two**` is not, and there are no headings or lists. The composer starts each thread with whatever it takes to reach the bot there, which in a Slack DM is nothing at all.
 
 Replies find their way back to the right thread because the forwarder is pointed at the simulator's stand-in API rather than the real one, through `github.apiUrl`, `slack.apiUrl`, and `linear.apiUrl`. The page says so in a banner if those do not match, and so does the simulator at startup. Pointing `github.apiUrl` away from github.com also lifts Octokit's write pacing, so GitHub replies arrive as promptly as the other two rather than three seconds apart.
