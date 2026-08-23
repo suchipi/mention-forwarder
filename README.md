@@ -45,7 +45,7 @@ npm start
 2026-08-19T18:00:00.000Z INFO  forwarding to: claude -p {{prompt}} cwd=/Users/you/Code/mention-forwarder maxConcurrentConversations=4
 ```
 
-Visiting `http://localhost:3000/` returns the same list as JSON, which is a quick way to confirm your tunnel reaches the process.
+Those three paths are the whole surface: every other URL, `/` included, gets a `404`. That is still the quickest way to confirm your tunnel reaches the process, since a `404` means the request got all the way to the forwarder, while a timeout or a tunnel error page means it did not.
 
 Before wiring up a real agent, point `command` at `["cat"]`. Every forwarded mention will then be echoed into the log as JSON, so you can see precisely what your command would have received.
 
@@ -388,7 +388,7 @@ GitHub only accepts its own fixed set of reactions. `eyes`, `+1`, `-1`, `laugh`,
 | --- | --- |
 | `No platforms are enabled` | None of `GITHUB_WEBHOOK_SECRET`, `SLACK_SIGNING_SECRET`, `LINEAR_WEBHOOK_SECRET` were found. Check that `.env` exists where you ran the command. |
 | `github is enabled but "github.triggerPhrases" is missing` | Neither GitHub nor Linear reports mentions as such, so a phrase is mandatory — otherwise every comment would run your command. |
-| Nothing happens, no log line at all | The request isn't arriving. Load your tunnel's URL in a browser: you should see the JSON endpoint list. Then check the platform's own delivery log (GitHub: *Recent Deliveries* on the webhook; Slack: the Event Subscriptions page; Linear: the webhook's history). |
+| Nothing happens, no log line at all | The request isn't arriving. Load your tunnel's URL in a browser: a `404` means it reached the forwarder, and a timeout or a tunnel error page means it did not. Then check the platform's own delivery log (GitHub: *Recent Deliveries* on the webhook; Slack: the Event Subscriptions page; Linear: the webhook's history). |
 | GitHub replies `400`/`401` | The secret doesn't match, or the webhook's content type isn't `application/json`. |
 | Slack won't verify the Request URL | The forwarder has to be running and reachable *before* you save the URL. |
 | Slack mention in a channel does nothing | The bot isn't in that channel. `/invite @your-bot`. |

@@ -195,14 +195,14 @@ function githubIssueComment(commentBody: string): string {
   });
 }
 
-test("health endpoint lists the enabled platforms", async () => {
+test("the root path answers nothing and names no platforms", async () => {
   const response = await fetch(`http://127.0.0.1:${port}/`);
-  const payload = (await response.json()) as { ok: boolean; endpoints: Array<{ platform: string; path: string }> };
-  assert.equal(payload.ok, true);
-  assert.deepEqual(
-    payload.endpoints.map((endpoint) => endpoint.platform).sort(),
-    ["github", "linear", "slack"],
-  );
+  assert.equal(response.status, 404);
+
+  const body = await response.text();
+  for (const platform of ["github", "linear", "slack"]) {
+    assert.ok(!body.includes(platform), `the 404 body should not name ${platform}`);
+  }
 });
 
 test("rejects a GitHub webhook with a bad signature", async () => {

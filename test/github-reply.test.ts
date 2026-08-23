@@ -107,7 +107,9 @@ process.stdin.on("end", () => {
   );
   await waitFor(async () => {
     try {
-      return (await fetch(`http://127.0.0.1:${port}/`)).ok;
+      // Any answer means the port is bound; the forwarder serves no route at /.
+      await fetch(`http://127.0.0.1:${port}/`);
+      return true;
     } catch {
       return false;
     }

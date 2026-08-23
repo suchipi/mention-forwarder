@@ -111,6 +111,8 @@ Process-level tests allocate a free port from the OS and record child-process in
 
 Nothing in the suite may touch the network. `test/e2e.test.ts` pins `github.allowedSources` for exactly that reason: without it the source guard would fetch `api.github.com/meta` mid-test.
 
+A startup probe waits for the port to answer, never for a `2xx`. There is no route at `/`, so `fetch(...).ok` there is always false and a probe written that way spins until it times out.
+
 ## Simulator
 
 `simulator/` is a development-only stand-in for one platform at a time. It serves a web UI of threads, signs real webhooks at a running forwarder, and hosts a fake platform API so replies and reactions land back in the same thread. It imports `src/config.ts`, so both processes read the same config and env files and cannot disagree about secrets, paths, or ports. The secrets in `simulator/forwarder.env` are fake on purpose. See `simulator/README.md`.

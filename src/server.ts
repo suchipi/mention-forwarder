@@ -72,9 +72,9 @@ export function createServer(
     endpoints.push({ platform: "slack", path: config.slack.path });
   }
 
-  app.get("/", (_request, response) => {
-    response.json({ ok: true, endpoints });
-  });
+  // No index route: it told anyone who asked which platforms were enabled and
+  // exactly where to post. The three webhook paths are the whole surface, and
+  // the 404 everything else gets is confirmation enough that the process is up.
 
   return { app, endpoints, guard };
 }

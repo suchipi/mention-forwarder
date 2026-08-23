@@ -188,7 +188,9 @@ process.stdin.on("end", () => {
   launch([FORWARDER, "--config", configPath, "--env-file", envPath], workspace);
   await waitFor(async () => {
     try {
-      return (await fetch(`http://127.0.0.1:${forwarderPort}/`)).ok;
+      // Any answer means the port is bound; the forwarder serves no route at /.
+      await fetch(`http://127.0.0.1:${forwarderPort}/`);
+      return true;
     } catch {
       return false;
     }
