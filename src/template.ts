@@ -50,7 +50,8 @@ function fields(mention: Mention): Record<Placeholder, string> {
 export function render(template: string, mention: Mention): string {
   const values = fields(mention);
   return template.replace(PATTERN, (whole, name: string) =>
-    name in values ? values[name as Placeholder] : whole,
+    // hasOwn, not `in`: `{{constructor}}` would otherwise resolve up the prototype chain.
+    Object.hasOwn(values, name) ? values[name as Placeholder] : whole,
   );
 }
 

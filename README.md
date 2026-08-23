@@ -161,6 +161,15 @@ When the reply is read depends on the lifecycle:
 
 Replying needs write credentials, the same ones the acknowledgement reaction uses: a GitHub App or token, a Slack bot token with `chat:write`, and `LINEAR_API_KEY`. A reply that fails is logged and never stops the command.
 
+### Replies never mention anyone
+
+A reply goes out under the bot's identity, so a mention inside one would notify a real person, and the text often quotes whoever wrote the comment. Mentions are therefore defused on the way out, whatever your command wrote:
+
+- **Slack.** `<!channel>`, `<!here>`, `<!everyone>`, `<@U…>`, `<#C…>` and `<!subteam^…>` lose their brackets and go out as `@channel`, `@name`, `#name`. Only the bracketed forms ever notified anyone, so emphasis, code, quotes and `<url|label>` links are untouched.
+- **GitHub and Linear.** `@name` and `@org/team` keep their spelling but gain a zero-width space after the `@`, which is the only thing either platform respects: a backslash does not escape `@` in a GitHub comment. Code spans, fenced blocks, links and bare URLs are left exactly as written, since a mention was never live inside them anyway.
+
+Nothing else about the text changes, and a reply that mentions nobody goes out byte for byte.
+
 ## Config reference
 
 Everything lives in `mention-forwarder.config.json`. Only `command` is required.
@@ -171,6 +180,8 @@ Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 | `cwd` | the forwarder's directory | Working directory for the command. |
 | `env` | `{}` | Extra environment variables. Values may use `{{placeholders}}`. |
 | `port` | `3000` | The single port all three platforms post to. |
+| `maxPayloadBytes` | `5242880` (5 MiB) | Largest webhook body to accept. Anything bigger, or anything sent without a `Content-Length`, is refused before it is read. See [Who can reach it](#who-can-reach-it). |
+| `trustedProxies` | `["loopback", "uniquelocal"]` | Which hops may be believed when they set `X-Forwarded-For`. Anything Express accepts for `trust proxy` works here. |
 | `lifecycle` | `"per-mention"` | `per-mention` starts the command fresh each time; `per-conversation` keeps one running per thread. See [Command lifecycles](#command-lifecycles). |
 | `sessionIdleMs` | `0` | `per-conversation` only: close a session after this long with no new mentions. `0` keeps it alive indefinitely. |
 | `replyDebounceMs` | `1500` | `per-conversation` only: how long writes to a reply file must settle before it is posted. |
@@ -189,6 +200,8 @@ Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 | `linear.path` | `/linear/webhooks` | Route Linear posts to. |
 | `slack.triggerPhrases` | `[]` | An optional *second* way in, not a filter: a real mention always counts, and so does any message carrying one of these. Needs extra subscriptions; see [Slack](#slack). |
 | `slack.path` | `/slack/events` | Route Slack posts to. |
+| `<platform>.allowedAuthors` | `[]` | Only these authors may trigger the command on that platform. Empty means anyone may. Matched case-insensitively; [What `allowedAuthors` matches](#what-allowedauthors-matches) says exactly which name each platform hands over. |
+| `<platform>.allowedSources` | its published ranges | Addresses or CIDR ranges that platform's webhooks may arrive from. Replaces the built-in list; an empty list means no source check at all, and loopback always passes either way. See [Who can reach it](#who-can-reach-it). |
 | `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
 | `linear.apiUrl` | Linear's own | Override the Linear GraphQL endpoint. For a local stub. |
@@ -290,7 +303,39 @@ tailscale funnel 3000
 Two things to keep in mind:
 
 - **A changed hostname means re-pasting the URL** into every platform. Prefer a tunnel with a stable name.
-- **Only the three webhook paths are exposed, and all three verify signatures** — HMAC-SHA256 for GitHub and Linear, Slack's own scheme for Slack. Unsigned or wrongly-signed requests are rejected before any command runs. Still, don't run this on a port you've exposed for other reasons.
+- **Only the three webhook paths are exposed.** Everything that reaches them is checked before your command hears about it; see [Who can reach it](#who-can-reach-it). Still, don't run this on a port you've exposed for other reasons.
+
+## Who can reach it
+
+A request has four things to get past before it can run your command, and it fails on the first one it misses.
+
+| Check | What it does |
+| --- | --- |
+| **Size** | A body over `maxPayloadBytes` (5 MiB by default) is refused with `413`, and one that arrives without a `Content-Length` with `411`. This happens first because the libraries underneath buffer the whole body before they look at the signature, so an unsigned request could otherwise spend as much of your memory as it liked. |
+| **Source** | GitHub and Linear both publish the addresses their webhooks come from, and anything else gets `403`. GitHub's list is read from `api.github.com/meta` at startup and once a day after that, falling back to a bundled copy if that call fails; Linear's is bundled, because Linear publishes no equivalent endpoint. **Slack is not checked**, because Slack runs on AWS and publishes no ranges. Loopback always passes, which is what a tunnel arrives on. Override any of it with `<platform>.allowedSources`. |
+| **Signature** | HMAC-SHA256 for GitHub and Linear, Slack's own scheme for Slack, each compared in constant time. Slack rejects anything signed more than five minutes ago and Linear more than a minute, so a captured delivery cannot be replayed later. |
+| **Author** | `ignoreBots` and `ignoreAuthors` drop mentions you don't want; `<platform>.allowedAuthors` inverts that into a list of the only people who may trigger the command at all. Worth setting on a public repo, where otherwise anyone who can leave a comment can start your agent. |
+
+Behind a tunnel or a router the connection arrives from your own machine, so the source check reads the original address out of `X-Forwarded-For` instead. That header is only believed when the hop that set it is itself trusted, which `trustedProxies` decides; by default that means loopback and private networks. Without that rule anyone could name whatever source address they liked.
+
+### What `allowedAuthors` matches
+
+Each platform names people differently, and the list is compared against exactly one string per platform:
+
+| Platform | The value compared | Example |
+| --- | --- | --- |
+| GitHub | The account's **login**. Never the profile's display name. | `octocat` |
+| Slack | The user's **display name**. If they have not set one it falls back to their real name, then their account name, and finally the raw user id. | `Lily Skye`, or `U04ABCDEF` |
+| Linear | The person's **name** as Linear shows it. A non-human actor gives its integration's service name instead. | `Lily Skye`, `zapier` |
+
+Comparison is case-insensitive, and nothing is trimmed or normalized beyond that, so a Slack display name is matched with its spaces and capitalization as written.
+
+Two things worth knowing before you rely on it:
+
+- **Slack needs the `users:read` scope**, or every author arrives as a raw id like `U04ABCDEF` and a list of display names matches nobody. That fails closed, so the symptom is the bot silently ignoring everyone.
+- **A display name is not an identity.** On Slack and Linear it is chosen by the account holder and can be changed, and two people can pick the same one. GitHub logins are unique and are the only one of the three that is a real handle.
+
+If you are not sure what a given person's value is, run once with `"logLevel": "debug"` and read the `author=` field off the `mention accepted` line. That is the exact string the list is compared against, and it is the same value `{{author}}` and `MENTION_AUTHOR` carry.
 
 ## What triggers a forward
 
@@ -348,6 +393,10 @@ GitHub only accepts its own fixed set of reactions. `eyes`, `+1`, `-1`, `laugh`,
 | Slack won't verify the Request URL | The forwarder has to be running and reachable *before* you save the URL. |
 | Slack mention in a channel does nothing | The bot isn't in that channel. `/invite @your-bot`. |
 | Linear returns `400` on everything | Wrong secret, or your system clock is off by more than a minute. |
+| Deliveries come back `403` | The source check refused them. The log names the address it saw. If your tunnel or proxy is not loopback or on a private network, add it to `trustedProxies`; if the platform has moved to a new range, add it to `<platform>.allowedSources`. |
+| Deliveries come back `413` or `411` | The body was over `maxPayloadBytes`, or arrived with no `Content-Length`. Raise `maxPayloadBytes` if a real payload is genuinely that big. |
+| A reply reads `@name` but nobody was notified | Working as intended; see [Replies never mention anyone](#replies-never-mention-anyone). |
+| Nobody can trigger it after setting `allowedAuthors` | The name that platform supplies is not what you listed. On Slack it is a raw user id like `U04ABCDEF` unless the app has `users:read`. Compare your list against the `author=` field on the `mention accepted` line at `"logLevel": "debug"`, and see [What `allowedAuthors` matches](#what-allowedauthors-matches). |
 | `bot token could not be verified` | The Slack token is wrong or expired. GitHub and Linear keep working; only Slack is affected. |
 | `command failed to start … is "x" installed and on PATH?` | `command[0]` isn't resolvable. Use an absolute path — a GUI-launched process may not have your shell's `PATH`. |
 | A mention is logged as accepted but nothing runs | Look for `command exited non-zero`; your program's own stdout and stderr are in the log, prefixed. |

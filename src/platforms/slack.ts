@@ -3,6 +3,7 @@ import type { Application } from "express";
 import type { SlackSettings } from "../config.ts";
 import type { Intake } from "../intake.ts";
 import type { Level, Logger } from "../logger.ts";
+import { neutralizeSlackMentions } from "../mentions.ts";
 import type { PayloadLogger } from "../payload-log.ts";
 import { createTriggerMatcher } from "../trigger.ts";
 
@@ -148,7 +149,7 @@ export function mountSlack(
       botId: event.bot_id,
       text,
       // A DM is addressed to the bot by definition, so the whole message is the
-      // instruction — no trigger phrase required and nothing to strip.
+      // instruction - no trigger phrase required and nothing to strip.
       prompt: text,
       // Keyed on the conversation rather than the message, so consecutive DMs are
       // answered in the order they were sent instead of racing each other.
@@ -199,7 +200,10 @@ export function mountSlack(
   async function postReply(incoming: Incoming, body: string): Promise<void> {
     await app.client.chat.postMessage({
       channel: incoming.channel,
-      text: body,
+      text: neutralizeSlackMentions(body),
+      // Off by default, but named here because turning it on would revive the
+      // plain-text `@here` that neutralizeSlackMentions leaves behind.
+      link_names: false,
       ...(incoming.replyThreadTs === undefined ? {} : { thread_ts: incoming.replyThreadTs }),
     });
   }

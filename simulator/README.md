@@ -67,12 +67,21 @@ Replies find their way back to the right thread because the forwarder is pointed
 ```
 -p, --platform <name>  github, slack, or linear. Defaults to the only enabled one.
     --port <number>    Port for the UI and the stand-in API (default: 4000)
+    --host <address>   Address to bind (default: 127.0.0.1)
 -c, --config <path>    The forwarder's config file (default: simulator/forwarder.config.json)
     --env-file <path>  The forwarder's env file (default: simulator/forwarder.env)
     --forwarder <url>  Where the forwarder listens (default: http://127.0.0.1:<the config's port>)
 ```
 
 To try your own command rather than the echo responder, point `command` in `simulator/forwarder.config.json` at it. Everything else can stay as it is.
+
+## It binds to localhost on purpose
+
+Posting in the simulator signs a webhook that makes the forwarder run its configured command, and there is no login on any of it. Bound to loopback that is fine, because only this machine can reach it.
+
+`--host 0.0.0.0` lifts that, and hands the same ability to anything that can reach the port: another machine on your network, or the coffee shop you are sitting in. It logs a warning saying so. Use it when you genuinely need to drive the simulator from another device, on a network you trust, and prefer an SSH tunnel when you don't.
+
+The forwarder itself still binds every interface, since the whole point is for GitHub, Slack, and Linear to reach it. What protects that port is the checks in [Who can reach it](../README.md#who-can-reach-it), not the binding.
 
 ## When something does not happen
 

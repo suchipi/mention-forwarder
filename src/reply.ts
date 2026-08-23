@@ -76,7 +76,19 @@ export function createReplyMailbox(dir: string, debounceMs: number, log: Logger)
     try {
       do {
         entry.changedWhileDraining = false;
-        const body = (await readAppended(entry)).trim();
+        let body: string;
+        try {
+          body = (await readAppended(entry)).trim();
+        } catch (error) {
+          // Reading can fail long after the file looked fine: the command may have
+          // removed it between the stat and the open, or descriptors may have run
+          // out. Escaping here would reach nobody and take the process down with it.
+          log.error("could not read the reply file", {
+            replyFile: basename(entry.path),
+            error: (error as Error).message,
+          });
+          return;
+        }
         if (body === "") continue;
         try {
           await entry.postReply(body);

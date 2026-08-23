@@ -8,6 +8,7 @@ import type { RequestHandler } from "express";
 import type { LinearSettings } from "../config.ts";
 import type { Intake } from "../intake.ts";
 import type { Logger } from "../logger.ts";
+import { neutralizeMarkdownMentions } from "../mentions.ts";
 import type { PayloadLogger } from "../payload-log.ts";
 import { createTriggerMatcher } from "../trigger.ts";
 
@@ -39,7 +40,7 @@ export function createLinearMiddleware(
       log.warn("cannot post reply: LINEAR_API_KEY is not set");
       return;
     }
-    await linear.createComment({ ...target, body });
+    await linear.createComment({ ...target, body: neutralizeMarkdownMentions(body) });
   }
 
   async function react(target: { commentId: string } | { issueId: string }): Promise<void> {
@@ -116,7 +117,7 @@ export function createLinearMiddleware(
   });
 
   // Reads and verifies the raw request stream itself, so nothing may parse the
-  // body before it — Linear signs the exact bytes.
+  // body before it - Linear signs the exact bytes.
   return (request, response) => {
     void handler(request, response);
   };

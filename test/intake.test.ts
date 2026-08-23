@@ -19,6 +19,8 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     cwd: "/tmp",
     env: {},
     port: 0,
+    maxPayloadBytes: 5 * 1024 * 1024,
+    trustedProxies: ["loopback"],
     timeoutMs: 0,
     lifecycle: "per-mention",
     sessionIdleMs: 0,
@@ -52,6 +54,18 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
     raw: { hello: "world" },
     postReply: async () => {},
     ...overrides,
+  };
+}
+
+function githubSettings(allowedAuthors: string[]): NonNullable<Config["github"]> {
+  return {
+    path: "/github/webhooks",
+    triggerPhrases: ["@my-bot"],
+    allowedAuthors,
+    allowedSources: undefined,
+    apiUrl: undefined,
+    webhookSecret: "s",
+    auth: { kind: "none" },
   };
 }
 
@@ -122,4 +136,46 @@ test("ignoreAuthors matches regardless of case", async () => {
   assert.equal(intake(candidate({ id: "other", author: "suchipi" }), { isBot: false }), true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(forwarded.length, 1);
+});
+
+test("allowedAuthors narrows to a list, case-insensitively", async () => {
+  const { intake, forwarded } = harness(baseConfig({ github: githubSettings(["Suchipi", "riley"]) }));
+  assert.equal(intake(candidate({ author: "SUCHIPI" }), { isBot: false }), true);
+  assert.equal(intake(candidate({ id: "two", author: "riley" }), { isBot: false }), true);
+  assert.equal(intake(candidate({ id: "three", author: "a-stranger" }), { isBot: false }), false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 2);
+});
+
+test("an empty allowedAuthors leaves everyone able to trigger", async () => {
+  const { intake, forwarded } = harness(baseConfig({ github: githubSettings([]) }));
+  assert.equal(intake(candidate({ author: "anyone-at-all" }), { isBot: false }), true);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 1);
+});
+
+test("one platform's allowlist does not narrow another's", async () => {
+  const { intake, forwarded } = harness(baseConfig({ github: githubSettings(["suchipi"]) }));
+  assert.equal(intake(candidate({ platform: "linear", author: "a-stranger" }), { isBot: false }), true);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 1);
+});
+
+test("a NUL byte is stripped rather than costing the mention its run", async () => {
+  const { intake, forwarded } = harness(baseConfig());
+  const nul = String.fromCharCode(0);
+  assert.equal(
+    intake(candidate({ text: `@my-bot go${nul}now`, prompt: `go${nul}now`, author: `su${nul}chipi` }), { isBot: false }),
+    true,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 1);
+  assert.equal(forwarded[0]?.prompt, "gonow");
+  assert.equal(forwarded[0]?.text, "@my-bot gonow");
+  assert.equal(forwarded[0]?.author, "suchipi");
+});
+
+test("a NUL byte cannot smuggle an author past ignoreAuthors", async () => {
+  const { intake } = harness(baseConfig({ ignoreAuthors: ["noisy-bot"] }));
+  assert.equal(intake(candidate({ author: `noisy-${String.fromCharCode(0)}bot` }), { isBot: false }), false);
 });

@@ -43,3 +43,8 @@ test("env vars mirror the placeholders in SCREAMING_SNAKE_CASE", () => {
   assert.equal(vars.MENTION_URL, mention.url);
   assert.equal(vars.MENTION_REPLY_FILE, "/tmp/mention-forwarder-x/abc.md");
 });
+
+test("a placeholder naming an Object property is left alone", () => {
+  assert.equal(render("{{constructor}}", mention), "{{constructor}}");
+  assert.equal(render("{{toString}} {{hasOwnProperty}}", mention), "{{toString}} {{hasOwnProperty}}");
+});

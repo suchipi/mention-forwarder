@@ -3,6 +3,7 @@ import { App, Octokit } from "octokit";
 import type { GitHubSettings } from "../config.ts";
 import type { Intake } from "../intake.ts";
 import type { Logger } from "../logger.ts";
+import { neutralizeMarkdownMentions } from "../mentions.ts";
 import type { PayloadLogger } from "../payload-log.ts";
 import { createTriggerMatcher } from "../trigger.ts";
 
@@ -194,7 +195,7 @@ export function createGitHubMiddleware(
     }
   }
 
-  async function postReply(place: Place, installationId: number | undefined, body: string): Promise<void> {
+  async function postReply(place: Place, installationId: number | undefined, written: string): Promise<void> {
     const api = await apiFor(installationId);
     if (api === undefined) {
       log.warn("cannot post reply: no GitHub credentials configured", { url: place.url });
@@ -202,6 +203,7 @@ export function createGitHubMiddleware(
     }
     const { owner, repo } = place;
     const plan = place.reply;
+    const body = neutralizeMarkdownMentions(written);
     switch (plan.via) {
       case "issueComment":
         await api.rest.issues.createComment({ owner, repo, issue_number: plan.issueNumber, body });

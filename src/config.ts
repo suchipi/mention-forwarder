@@ -9,6 +9,10 @@ export class ConfigError extends Error {}
 const platformOverrides = z.strictObject({
   path: z.string().startsWith("/").optional(),
   triggerPhrases: z.array(z.string().min(1)).optional(),
+  /** Only these authors may trigger the command. Absent or empty means anyone may. */
+  allowedAuthors: z.array(z.string().min(1)).optional(),
+  /** Addresses or CIDR ranges this platform's webhooks may arrive from. Replaces the built-in list. */
+  allowedSources: z.array(z.string().min(1)).optional(),
 });
 
 const githubOverrides = platformOverrides.extend({
@@ -31,6 +35,9 @@ const fileSchema = z.strictObject({
   cwd: z.string().optional(),
   env: z.record(z.string(), z.string()).default({}),
   port: z.number().int().min(1).max(65535).default(3000),
+  maxPayloadBytes: z.number().int().min(1024).default(5 * 1024 * 1024),
+  /** Hops whose X-Forwarded-For may be believed, as Express understands them. */
+  trustedProxies: z.array(z.string().min(1)).default(["loopback", "uniquelocal"]),
   timeoutMs: z.number().int().min(0).default(0),
   lifecycle: z.enum(["per-mention", "per-conversation"]).default("per-mention"),
   sessionIdleMs: z.number().int().min(0).default(0),
@@ -53,28 +60,30 @@ export type GitHubAuth =
   | { kind: "token"; token: string }
   | { kind: "none" };
 
-export type GitHubSettings = {
+/** Settings every platform shares, whatever else it needs alongside them. */
+type CommonSettings = {
   path: string;
   triggerPhrases: string[];
+  /** Empty means anyone may trigger the command. */
+  allowedAuthors: string[];
+  /** Undefined leaves the platform's built-in source list in place. */
+  allowedSources: string[] | undefined;
+  apiUrl: string | undefined;
+};
+
+export type GitHubSettings = CommonSettings & {
   webhookSecret: string;
   auth: GitHubAuth;
-  apiUrl: string | undefined;
 };
 
-export type SlackSettings = {
-  path: string;
-  triggerPhrases: string[];
+export type SlackSettings = CommonSettings & {
   signingSecret: string;
   botToken: string;
-  apiUrl: string | undefined;
 };
 
-export type LinearSettings = {
-  path: string;
-  triggerPhrases: string[];
+export type LinearSettings = CommonSettings & {
   webhookSecret: string;
   apiKey: string | undefined;
-  apiUrl: string | undefined;
 };
 
 export type Config = {
@@ -82,6 +91,8 @@ export type Config = {
   cwd: string;
   env: Record<string, string>;
   port: number;
+  maxPayloadBytes: number;
+  trustedProxies: string[];
   timeoutMs: number;
   lifecycle: "per-mention" | "per-conversation";
   sessionIdleMs: number;
@@ -196,6 +207,8 @@ export function loadConfig(path: string): Config {
     slack = {
       path: file.slack?.path ?? DEFAULT_PATHS.slack,
       triggerPhrases: file.slack?.triggerPhrases ?? [],
+      allowedAuthors: file.slack?.allowedAuthors ?? [],
+      allowedSources: file.slack?.allowedSources,
       signingSecret: slackSigningSecret,
       botToken,
       apiUrl: file.slack?.apiUrl,
@@ -207,6 +220,8 @@ export function loadConfig(path: string): Config {
     cwd: file.cwd === undefined ? process.cwd() : resolvePath(file.cwd),
     env: file.env,
     port: file.port,
+    maxPayloadBytes: file.maxPayloadBytes,
+    trustedProxies: file.trustedProxies,
     timeoutMs: file.timeoutMs,
     lifecycle: file.lifecycle,
     sessionIdleMs: file.sessionIdleMs,
@@ -225,6 +240,8 @@ export function loadConfig(path: string): Config {
         : {
             path: file.github?.path ?? DEFAULT_PATHS.github,
             triggerPhrases: requireTriggerPhrases("github", file.github?.triggerPhrases),
+            allowedAuthors: file.github?.allowedAuthors ?? [],
+            allowedSources: file.github?.allowedSources,
             webhookSecret: githubSecret,
             auth: readGitHubAuth(),
             apiUrl: file.github?.apiUrl,
@@ -236,6 +253,8 @@ export function loadConfig(path: string): Config {
         : {
             path: file.linear?.path ?? DEFAULT_PATHS.linear,
             triggerPhrases: requireTriggerPhrases("linear", file.linear?.triggerPhrases),
+            allowedAuthors: file.linear?.allowedAuthors ?? [],
+            allowedSources: file.linear?.allowedSources,
             webhookSecret: linearSecret,
             apiKey: env("LINEAR_API_KEY"),
             apiUrl: file.linear?.apiUrl,

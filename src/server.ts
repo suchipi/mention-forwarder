@@ -6,20 +6,29 @@ import { createGitHubMiddleware, githubReactionFor } from "./platforms/github.ts
 import { createLinearMiddleware } from "./platforms/linear.ts";
 import { mountSlack } from "./platforms/slack.ts";
 import { createPayloadLogger } from "./payload-log.ts";
+import { createSizeGate, createSourceGuard, type SourceGuard } from "./request-guard.ts";
+import type { Platform } from "./types.ts";
 
-export type Endpoint = { platform: string; path: string };
+export type Endpoint = { platform: Platform; path: string };
 
 export function createServer(
   config: Config,
   intake: Intake,
   log: Logger,
-): { app: Application; endpoints: Endpoint[] } {
+): { app: Application; endpoints: Endpoint[]; guard: SourceGuard } {
   const app = express();
   const endpoints: Endpoint[] = [];
   const logPayload = createPayloadLogger(config.logPayloads);
 
   // Note the absence of any app-wide body parser: GitHub and Linear both verify
   // signatures over the raw request stream and must read it themselves.
+
+  // Without this an X-Forwarded-For header from anywhere would be believed, and
+  // the source allowlist below could be talked out of its answer by any caller.
+  app.set("trust proxy", config.trustedProxies);
+
+  const guard = createSourceGuard(config, log.scoped("source"));
+  const sizeGate = createSizeGate(config.maxPayloadBytes, log.scoped("size"));
 
   if (config.github !== undefined) {
     if (config.github.auth.kind === "none") {
@@ -32,6 +41,7 @@ export function createServer(
     if (reaction === undefined) {
       log.warn(`reactionEmoji ":${config.reactionEmoji}:" has no GitHub equivalent; GitHub mentions will not be acknowledged`);
     }
+    app.use(config.github.path, sizeGate, guard.middlewareFor("github"));
     app.use(createGitHubMiddleware(config.github, reaction, intake, log.scoped("github"), logPayload));
     endpoints.push({ platform: "github", path: config.github.path });
   }
@@ -42,12 +52,15 @@ export function createServer(
     }
     app.post(
       config.linear.path,
+      sizeGate,
+      guard.middlewareFor("linear"),
       createLinearMiddleware(config.linear, config.reactionEmoji, intake, log.scoped("linear"), logPayload),
     );
     endpoints.push({ platform: "linear", path: config.linear.path });
   }
 
   if (config.slack !== undefined) {
+    app.use(config.slack.path, sizeGate, guard.middlewareFor("slack"));
     mountSlack(
       config.slack,
       app,
@@ -63,5 +76,5 @@ export function createServer(
     response.json({ ok: true, endpoints });
   });
 
-  return { app, endpoints };
+  return { app, endpoints, guard };
 }

@@ -13,7 +13,7 @@ import { createReplyMailbox } from "./reply.ts";
 import { createRunner } from "./runner.ts";
 import { createServer } from "./server.ts";
 
-const HELP = `mention-forwarder — forward @-mentions from GitHub, Slack, and Linear to a command
+const HELP = `mention-forwarder - forward @-mentions from GitHub, Slack, and Linear to a command
 
 Usage: mention-forwarder [options]
 
@@ -73,7 +73,7 @@ function main(): void {
     log.error("task failed", { error: error instanceof Error ? error.message : String(error) });
   });
   const intake = createIntake(config, queue, createSeenIds(2048), mailbox, runner.forward, log);
-  const { app, endpoints } = createServer(config, intake, log);
+  const { app, endpoints, guard } = createServer(config, intake, log);
 
   const server = app.listen(config.port, () => {
     log.info(`listening on http://localhost:${config.port}`);
@@ -87,7 +87,10 @@ function main(): void {
       const listed = phrases ?? [];
       const trigger =
         platform === "slack" ? ["native mention", ...listed].join(" or ") : listed.join(", ") || "native mention";
-      log.info(`  ${platform.padEnd(6)} POST ${path}`, { trigger });
+      log.info(`  ${platform.padEnd(6)} POST ${path}`, {
+        trigger,
+        from: guard.describe(platform),
+      });
     }
     log.info(`forwarding to: ${config.command.join(" ")}`, {
       cwd: config.cwd,
@@ -102,6 +105,7 @@ function main(): void {
       log.info(`${signal} received, shutting down`);
       runner.shutdown();
       mailbox.close();
+      guard.close();
       server.close(() => process.exit(0));
     });
   }

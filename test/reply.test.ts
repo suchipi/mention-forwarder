@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -153,4 +153,26 @@ test("a failing poster is contained and does not stop later replies", async () =
 
   assert.equal(calls, 2);
   assert.deepEqual(posted, ["second"]);
+});
+
+test("a reply file that cannot be read is reported, not thrown", async () => {
+  const { mailbox, posted, poster } = setup();
+  const replyFile = mailbox.pathFor("unreadable");
+  // A directory where the file should be: stat succeeds, the read does not.
+  mkdirSync(replyFile);
+
+  await assert.doesNotReject(() => mailbox.postOnce(replyFile, poster));
+  assert.deepEqual(posted, []);
+});
+
+test("one unreadable reply file does not stop the next one", async () => {
+  const { mailbox, posted, poster } = setup();
+  const broken = mailbox.pathFor("broken");
+  mkdirSync(broken);
+  await mailbox.postOnce(broken, poster);
+
+  const fine = mailbox.pathFor("fine");
+  writeFileSync(fine, "still working\n");
+  await mailbox.postOnce(fine, poster);
+  assert.deepEqual(posted, ["still working"]);
 });

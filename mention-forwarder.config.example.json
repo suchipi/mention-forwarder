@@ -2,6 +2,7 @@
   "command": ["claude", "-p", "{{prompt}}"],
   "lifecycle": "per-mention",
   "port": 3000,
+  "maxPayloadBytes": 5242880,
   "logLevel": "info",
   "maxConcurrentConversations": 4,
   "reactionEmoji": "eyes",
@@ -11,6 +12,6 @@
   "timeoutMs": 0,
   "ignoreBots": true,
   "ignoreAuthors": [],
-  "github": { "triggerPhrases": ["@my-bot"] },
-  "linear": { "triggerPhrases": ["@my-bot"] }
+  "github": { "triggerPhrases": ["@my-bot"], "allowedAuthors": [] },
+  "linear": { "triggerPhrases": ["@my-bot"], "allowedAuthors": [] }
 }

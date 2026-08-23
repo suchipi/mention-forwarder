@@ -27,6 +27,9 @@ API and land in the same thread.
 Options:
   -p, --platform <name>  Which platform to imitate. Defaults to the only enabled one.
       --port <number>    Port for the UI and the stand-in API (default: 4000)
+      --host <address>   Address to bind (default: 127.0.0.1). Pass 0.0.0.0 to accept
+                         connections from other machines, which lets anyone who can
+                         reach this port run the forwarder's command.
   -c, --config <path>    The forwarder's config file (default: simulator/forwarder.config.json)
       --env-file <path>  The forwarder's env file (default: simulator/forwarder.env)
       --forwarder <url>  Where the forwarder listens (default: http://127.0.0.1:<the config's port>)
@@ -37,6 +40,14 @@ Start the forwarder against the same two files, so both sides agree on secrets a
 `;
 
 const PLATFORMS: Platform[] = ["github", "slack", "linear"];
+
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
+
+/** Where to dial the simulator once it is bound: every interface still answers on loopback. */
+function reachableHost(host: string): string {
+  if (host === "0.0.0.0" || host === "::") return "127.0.0.1";
+  return host.includes(":") ? `[${host}]` : host;
+}
 
 function chosenPlatform(requested: string | undefined, enabled: Platform[]): Platform {
   if (requested !== undefined) {
@@ -63,6 +74,7 @@ function main(): void {
     options: {
       platform: { type: "string", short: "p" },
       port: { type: "string", default: "4000" },
+      host: { type: "string", default: "127.0.0.1" },
       config: { type: "string", short: "c", default: DEFAULT_CONFIG },
       "env-file": { type: "string", default: DEFAULT_ENV },
       forwarder: { type: "string" },
@@ -90,7 +102,10 @@ function main(): void {
     throw new ConfigError(`--port ${port} is the forwarder's own port; the simulator needs one of its own.`);
   }
 
-  const simUrl = `http://127.0.0.1:${port}`;
+  const host = values.host.trim();
+  if (host === "") throw new ConfigError("--host cannot be empty.");
+
+  const simUrl = `http://${reachableHost(host)}:${port}`;
   const forwarderUrl = (values.forwarder ?? `http://127.0.0.1:${config.port}`).replace(/\/$/, "");
   const store = createStore();
   const shared = { forwarderUrl, simUrl, botName: "sim-bot", store, log: log.scoped(platform) };
@@ -123,10 +138,16 @@ function main(): void {
   const configuredApiUrl = config[platform]?.apiUrl;
   const info = { forwarderUrl, webhookUrl: sim.webhookUrl, expectedApiUrl: sim.expectedApiUrl, configuredApiUrl };
 
-  createSimServer(sim, store, info, log).listen(port, () => {
+  createSimServer(sim, store, info, log).listen(port, host, () => {
     log.info(`simulating ${sim.platform}; open ${simUrl}`);
     log.info(`  webhooks     POST ${sim.webhookUrl}`);
     log.info(`  stand-in API ${sim.expectedApiUrl}`);
+    if (!LOOPBACK.has(host)) {
+      log.warn(
+        `bound to ${host} rather than loopback. Posting in this simulator runs the forwarder's command, and nothing ` +
+          "here asks who is posting, so anyone who can reach this port can run it.",
+      );
+    }
     if (configuredApiUrl !== sim.expectedApiUrl) {
       log.warn(
         `${sim.platform}.apiUrl is ${configuredApiUrl ?? "unset"} in ${values.config}, so replies and reactions will ` +

@@ -123,7 +123,8 @@ before(async () => {
       port,
       logLevel: "debug",
       maxConcurrentConversations: 2,
-      github: { triggerPhrases: ["@my-bot"] },
+      // Pinned so the guard does not reach for api.github.com/meta mid-test.
+      github: { triggerPhrases: ["@my-bot"], allowedSources: ["203.0.113.0/24"] },
       linear: { triggerPhrases: ["@my-bot"] },
       slack: { apiUrl: stub.url, triggerPhrases: ["@my-bot"] },
       logPayloads: true,

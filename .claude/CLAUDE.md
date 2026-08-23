@@ -23,21 +23,36 @@ Node 22.18+ is required because the TypeScript sources run directly through Node
 
 ## Architecture
 
-Deliveries move in one direction through five stages, each with a single responsibility:
+Deliveries move in one direction through six stages, each with a single responsibility:
 
 | Stage | File | Responsibility |
 | --- | --- | --- |
+| Guard | `src/request-guard.ts` | Refuse a request on size or source address before any platform code reads it. |
 | Adapter | `src/platforms/{github,linear,slack}.ts` | Verify the signature, pick out mentions, normalize to a `Candidate`, add the acknowledgement reaction, and know how to post a reply. |
-| Intake | `src/intake.ts` | Shared policy for all three: drop duplicates, drop bots and ignored authors, stamp `receivedAt` and `replyFile`, enqueue. |
+| Intake | `src/intake.ts` | Shared policy for all three: scrub NUL bytes, drop duplicates, apply the bot/ignore/allow lists, stamp `receivedAt` and `replyFile`, enqueue. |
 | Queue | `src/queue.ts` | Serial within a `conversationKey`, parallel across keys, capped at `maxConcurrentConversations`. |
 | Runner | `src/runner.ts` | Spawn or reuse the child process and wire up argv, env, and stdin. |
 | Mailbox | `src/reply.ts` | Watch reply files and post whatever was appended since the last post. |
 
 `src/cli.ts` wires those together and is the only place that knows the startup order. Adapters never reach into the queue or the runner; they hand `intake` a candidate and a `postReply` closure.
 
+`src/mentions.ts` sits off to the side of that pipeline: the adapters call it on the way out, never on the way in.
+
 ### Raw request bodies are load-bearing
 
 `src/server.ts` deliberately mounts no app-wide body parser. GitHub (`@octokit/webhooks`) and Linear (`@linear/sdk/webhooks`) both verify HMAC-SHA256 over the exact request bytes and read the stream themselves, and Slack's `ExpressReceiver` is handed the Express `app` rather than a `Router` so Bolt scopes its own parser to just `/slack/events`. Adding `express.json()` (or any global parser) silently breaks GitHub and Linear signature verification.
+
+### Everything hostile is stopped before the platform libraries, not by them
+
+All three webhook libraries buffer the whole request body and only then check the signature, so `src/server.ts` mounts the guards from `src/request-guard.ts` ahead of each platform handler. The size gate refuses a body over `maxPayloadBytes`, and one with no `Content-Length` outright, because honouring a chunked upload would mean streaming an unbounded body to find out how big it is.
+
+The source guard is per platform: GitHub's ranges are read from `api.github.com/meta` at boot and daily after, Linear's are bundled constants, and Slack is deliberately unrestricted because Slack publishes no ranges. Loopback always passes, which is what a tunnel arrives on.
+
+Client addresses come from `req.ip` with Express `trust proxy` set from `trustedProxies`. Never read `X-Forwarded-For` directly: believing it unconditionally would let any caller name whatever source address it liked, which is the whole control.
+
+### Replies are rewritten on the way out
+
+`src/mentions.ts` defuses mentions in every reply, because a reply is posted as the bot and usually quotes attacker-controlled text. Slack loses the angle brackets that make a mention live; GitHub and Linear get a zero-width space after the `@`, since neither offers a real escape. Code, links and URLs are skipped so nothing copy-pasteable is altered. Any new reply path must call the matching function.
 
 ### `Mention` is a public interface
 
@@ -81,18 +96,25 @@ GitHub and Linear webhooks never say "you were mentioned", so `triggerPhrases` i
 
 - Local imports carry the `.ts` extension (`./config.ts`), since Node runs the sources directly.
 - `tsconfig.json` sets `erasableSyntaxOnly` (no enums, namespaces, or parameter properties), `verbatimModuleSyntax` (type-only imports need `import type`), `strict`, and `noUncheckedIndexedAccess`.
-- Which platforms are enabled is decided by which secrets are present in the environment; the config file only overrides paths, trigger phrases, and API base URLs. `apiUrl` overrides exist so the simulator and the tests can stand in for a real platform.
+- Which platforms are enabled is decided by which secrets are present in the environment; the config file only overrides per-platform details (paths, trigger phrases, allowed authors and sources, API base URLs). `apiUrl` overrides exist so the simulator and the tests can stand in for a real platform.
+- The three platform blocks share a `platformOverrides` schema and a `CommonSettings` type in `src/config.ts`. A setting that applies to all three belongs there, not copied into each.
 - Repo conventions live in `.claude/rules/*.md` and are loaded automatically.
 
 ## Tests
 
 `node:test`, no framework. Two kinds:
 
-- **Unit**: `trigger`, `template`, `queue`, `intake`, `reply`, `markdown`. Fast and in-process.
+- **Unit**: `trigger`, `template`, `queue`, `intake`, `reply`, `markdown`, `mentions`, `request-guard`. Fast and in-process. `request-guard.test.ts` stands up a throwaway Express app rather than the CLI, and drives the source check by sending `X-Forwarded-For` from loopback, which `trust proxy` believes.
 - **Process-level**: `e2e`, `lifecycle`, `streaming-reply`, `github-reply`, `log-payloads`, `simulator`. These spawn the real `src/cli.ts` (and, for `simulator.test.ts`, one simulator per platform), post genuinely signed payloads at it, and assert on what the child process received or what came back through a stand-in platform API.
 
 Process-level tests allocate a free port from the OS and record child-process input into a temp workspace. Assert on asynchronous effects with the `waitFor` polling helpers already in each file rather than a fixed sleep. `test/reply.test.ts` also has `waitUntilWatching`, because `fs.watch` arms asynchronously and a write that lands first is never reported.
 
+Nothing in the suite may touch the network. `test/e2e.test.ts` pins `github.allowedSources` for exactly that reason: without it the source guard would fetch `api.github.com/meta` mid-test.
+
 ## Simulator
 
 `simulator/` is a development-only stand-in for one platform at a time. It serves a web UI of threads, signs real webhooks at a running forwarder, and hosts a fake platform API so replies and reactions land back in the same thread. It imports `src/config.ts`, so both processes read the same config and env files and cannot disagree about secrets, paths, or ports. The secrets in `simulator/forwarder.env` are fake on purpose. See `simulator/README.md`.
+
+It binds `127.0.0.1` by default, and `--host` is the only way off that. Posting through it signs a webhook that runs the forwarder's command and nothing asks who is posting, so the binding is what stands between that and the network. The forwarder's own port keeps binding every interface, since the three platforms have to reach it; `src/request-guard.ts` is what defends that one.
+
+The simulator has no config file of its own. Its settings are CLI flags, and the JSON file it reads belongs to the forwarder and is validated by a `z.strictObject`, so a simulator-only key cannot be added there without changing the forwarder's schema.
