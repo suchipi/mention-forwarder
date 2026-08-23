@@ -24,6 +24,7 @@ type Message = {
   text: string;
   reactions: string[];
   delivery: { ok: boolean; status: number | null; detail: string } | null;
+  request: { body: unknown } | null;
 };
 
 const ports: Record<Platform, number> = { github: 0, slack: 0, linear: 0 };
@@ -83,6 +84,11 @@ async function post(platform: Platform, body: { threadId: string; kind: string; 
     body: JSON.stringify(body),
   });
   assert.equal(response.status, 200, `the simulator refused to send ${body.kind}: ${await response.text()}`);
+}
+
+async function clearBoard(platform: Platform) {
+  const response = await fetch(`http://127.0.0.1:${ports[platform]}/sim/clear`, { method: "POST" });
+  assert.equal(response.status, 200, `the ${platform} simulator refused to clear`);
 }
 
 async function messagesIn(platform: Platform, threadId: string): Promise<Message[]> {
@@ -224,6 +230,12 @@ const GITHUB_EVENTS = [
   },
   {
     thread: "discussion-3",
+    kind: "discussion_comment.created.reply",
+    mentionKind: "discussion_comment",
+    conversation: "github:acme/widgets/discussions/3",
+  },
+  {
+    thread: "discussion-3",
     kind: "discussion.created",
     mentionKind: "discussion",
     conversation: "github:acme/widgets/discussions/3",
@@ -278,6 +290,26 @@ test("github: replies on one thread are not paced by Octokit's write throttle", 
 
   const elapsed = Date.now() - startedAt;
   assert.ok(elapsed < 3000, `three replies on one thread took ${elapsed}ms; is the write throttle back on?`);
+});
+
+test("github: a mention inside a discussion reply is answered under that reply's parent", async () => {
+  await forwarded("github", "discussion-3", "discussion_comment.created", "lily", "gh discussion parent");
+  const prompt = "gh discussion reply";
+  await forwarded("github", "discussion-3", "discussion_comment.created.reply", "riley", prompt);
+
+  await waitFor(
+    async () =>
+      (await messagesIn("github", "discussion-3")).some((message) => message.text.includes(`answering: ${prompt}`)),
+    "the answer to the discussion reply to come back",
+  );
+
+  const messages = await messagesIn("github", "discussion-3");
+  const sent = messages.find((message) => message.text.endsWith(prompt));
+  assert.equal(sent?.kind, "discussion_comment.created.reply");
+
+  const reply = messages.find((message) => message.text.includes(`answering: ${prompt}`));
+  // Naming the reply itself is what GitHub refuses, so an unthreaded answer here means the parent was never resolved.
+  assert.equal(reply?.kind, "addDiscussionComment (threaded)");
 });
 
 test("github: bots and comments without the phrase are ignored", async () => {
@@ -366,6 +398,18 @@ test("linear: the reaction and the reply come back into the thread", async () =>
   const reply = messages.find((message) => message.text.includes(`answering: ${prompt}`));
   assert.ok(reply);
   assert.equal(reply.direction, "received");
+});
+
+test("linear: a threaded reply with nothing above it is sent as a top-level comment", async () => {
+  // The rule is about a reply with no comment above it, so the board has to start empty.
+  await clearBoard("linear");
+  const prompt = "linear reply with no parent";
+  await forwarded("linear", "acm-13", "Comment.create.reply", "user-lily", prompt);
+
+  const sent = (await messagesIn("linear", "acm-13")).find((message) => message.text.endsWith(prompt));
+  assert.equal(sent?.kind, "Comment.create", "the simulator records what Linear would have sent");
+  const data = (sent?.request?.body as { data?: { parentId?: string } } | undefined)?.data;
+  assert.equal(data?.parentId, undefined, "a reply with no parent is not a reply");
 });
 
 test("linear: bots and comments without the phrase are ignored", async () => {

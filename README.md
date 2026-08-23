@@ -153,7 +153,7 @@ When the reply is read depends on the lifecycle:
 | GitHub review summary | A comment on the PR conversation — a review body has no thread of its own |
 | GitHub new issue or PR body | A comment on it |
 | GitHub commit comment | Another comment on that commit |
-| GitHub discussion, or a comment on one | A discussion comment, threaded under the comment that mentioned you |
+| GitHub discussion, or a comment on one | A discussion comment, threaded under the comment that mentioned you, or under that comment's parent when the mention is itself a reply: GitHub threads discussions only one level deep |
 | Slack channel mention | A threaded reply under the message |
 | Slack DM | The next message in that DM |
 | Linear comment | A threaded reply under the top-level comment |

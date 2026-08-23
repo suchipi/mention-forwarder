@@ -43,12 +43,50 @@ const ADD_DISCUSSION_COMMENT = `
   }
 `;
 
+const DISCUSSION_COMMENT_IDS = `
+  query DiscussionCommentIds($owner: String!, $name: String!, $number: Int!, $after: String) {
+    repository(owner: $owner, name: $name) {
+      discussion(number: $number) {
+        comments(first: 100, after: $after) {
+          nodes { id databaseId }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }
+`;
+
+type DiscussionCommentIds = {
+  repository?: {
+    discussion?: {
+      comments?: {
+        nodes?: Array<{ id?: string; databaseId?: number } | null> | null;
+        pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+      } | null;
+    } | null;
+  } | null;
+};
+
+/** Enough for any discussion worth answering in; beyond it the reply goes to the top level instead of paging forever. */
+const DISCUSSION_COMMENT_PAGES = 20;
+
+/**
+ * Which comment an answer hangs off. GitHub threads discussions only one level
+ * deep, so a mention written in a reply has to name that reply's parent, which
+ * the webhook identifies by database id rather than by the node id the mutation
+ * wants.
+ */
+type DiscussionReplyTo =
+  | { at: "discussion" }
+  | { at: "comment"; nodeId: string }
+  | { at: "parentOf"; discussionNumber: number; parentId: number };
+
 /** Where a reply belongs, which is not always where the mention's own reactions go. */
 type ReplyPlan =
   | { via: "issueComment"; issueNumber: number }
   | { via: "reviewCommentReply"; pullNumber: number; commentId: number }
   | { via: "commitComment"; commitSha: string }
-  | { via: "discussionComment"; discussionNodeId: string; replyToNodeId: string | undefined };
+  | { via: "discussionComment"; discussionNodeId: string; replyTo: DiscussionReplyTo };
 
 type Place = {
   kind: string;
@@ -87,9 +125,59 @@ export function createGitHubMiddleware(
       : undefined;
   const withToken = settings.auth.kind === "token" ? new ScopedOctokit({ auth: settings.auth.token }) : undefined;
 
-  async function apiFor(installationId: number | undefined) {
+  async function apiFor(installationId: number | undefined): Promise<Octokit | undefined> {
     if (app !== undefined && installationId !== undefined) return app.getInstallationOctokit(installationId);
     return withToken;
+  }
+
+  /** Walks the discussion's top-level comments, which are the only ones a reply may hang off. */
+  async function topLevelCommentNodeId(
+    api: Octokit,
+    owner: string,
+    repo: string,
+    discussionNumber: number,
+    databaseId: number,
+  ): Promise<string | undefined> {
+    let after: string | null = null;
+    for (let page = 0; page < DISCUSSION_COMMENT_PAGES; page += 1) {
+      const result: DiscussionCommentIds = await api.graphql(DISCUSSION_COMMENT_IDS, {
+        owner,
+        name: repo,
+        number: discussionNumber,
+        after,
+      });
+      const comments = result.repository?.discussion?.comments;
+      const match = comments?.nodes?.find((node) => node?.databaseId === databaseId);
+      if (match?.id !== undefined) return match.id;
+      if (comments?.pageInfo?.hasNextPage !== true) return undefined;
+      after = comments.pageInfo.endCursor ?? null;
+      if (after === null) return undefined;
+    }
+    return undefined;
+  }
+
+  /** Null answers the discussion itself, which is where an unresolvable parent lands rather than nowhere. */
+  async function discussionReplyToId(
+    api: Octokit,
+    owner: string,
+    repo: string,
+    target: DiscussionReplyTo,
+  ): Promise<string | null> {
+    if (target.at === "discussion") return null;
+    if (target.at === "comment") return target.nodeId;
+    try {
+      const nodeId = await topLevelCommentNodeId(api, owner, repo, target.discussionNumber, target.parentId);
+      if (nodeId !== undefined) return nodeId;
+      log.warn("could not find the comment this reply hangs off; answering at the top level", {
+        discussion: target.discussionNumber,
+        parent: target.parentId,
+      });
+    } catch (error) {
+      log.warn("could not look up the comment this reply hangs off; answering at the top level", {
+        error: (error as Error).message,
+      });
+    }
+    return null;
   }
 
   /** One GraphQL mutation covers every place a mention can appear; the REST reaction routes do not. */
@@ -135,7 +223,7 @@ export function createGitHubMiddleware(
       case "discussionComment":
         await api.graphql(ADD_DISCUSSION_COMMENT, {
           discussionId: plan.discussionNodeId,
-          replyToId: plan.replyToNodeId ?? null,
+          replyToId: await discussionReplyToId(api, owner, repo, plan.replyTo),
           body,
         });
         return;
@@ -316,7 +404,10 @@ export function createGitHubMiddleware(
         reply: {
           via: "discussionComment",
           discussionNodeId: payload.discussion.node_id,
-          replyToNodeId: payload.comment.node_id,
+          replyTo:
+            payload.comment.parent_id === null || payload.comment.parent_id === undefined
+              ? { at: "comment", nodeId: payload.comment.node_id }
+              : { at: "parentOf", discussionNumber: payload.discussion.number, parentId: payload.comment.parent_id },
         },
       },
       payload.installation?.id,
@@ -338,7 +429,7 @@ export function createGitHubMiddleware(
         conversationKey: `github:${payload.repository.full_name}/discussions/${payload.discussion.number}`,
         owner: payload.repository.owner.login,
         repo: payload.repository.name,
-        reply: { via: "discussionComment", discussionNodeId: payload.discussion.node_id, replyToNodeId: undefined },
+        reply: { via: "discussionComment", discussionNodeId: payload.discussion.node_id, replyTo: { at: "discussion" } },
       },
       payload.installation?.id,
       payload,

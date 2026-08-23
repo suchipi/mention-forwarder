@@ -44,7 +44,7 @@ const THREADS: Thread[] = Object.entries(PLACES).map(([id, place]) => ({
     {
       id: "Comment.create.reply",
       label: "Comment.create (threaded reply)",
-      hint: "A reply under the newest top-level comment. The forwarder answers in that same sub-thread.",
+      hint: "A reply under the newest top-level comment. The forwarder answers in that same sub-thread. With nothing above it, it is sent as a top-level comment instead.",
     },
     { id: "Issue.create", label: "Issue.create", hint: "The issue description, as the issue is created." },
   ],
@@ -223,13 +223,16 @@ export function createLinearSim(options: {
     expectedApiUrl: `${simUrl}${LINEAR_API_MOUNT}/graphql`,
     api: createApi(store, botName, log),
 
-    async post({ threadId, kind, authorId, text }: PostRequest) {
+    async post({ threadId, kind: requested, authorId, text }: PostRequest) {
       const place = PLACES[threadId];
       const author = AUTHORS.find((candidate) => candidate.id === authorId);
       if (place === undefined) throw new Error(`unknown thread ${threadId}`);
       if (author === undefined) throw new Error(`unknown author ${authorId}`);
 
-      const parentId = kind === "Comment.create.reply" ? newestTopLevelComment(threadId) : undefined;
+      const parentId = requested === "Comment.create.reply" ? newestTopLevelComment(threadId) : undefined;
+      // A reply needs something to hang off; with nothing above it there is only a top-level comment to send.
+      const kind = requested === "Comment.create.reply" && parentId === undefined ? "Comment.create" : requested;
+
       const built = build(place, kind, author, text, parentId);
       const body = JSON.stringify(built.payload);
       const headers = { "linear-signature": createHmac("sha256", settings.webhookSecret).update(body).digest("hex") };

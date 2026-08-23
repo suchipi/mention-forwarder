@@ -4,7 +4,7 @@ import type { GitHubSettings } from "../../src/config.ts";
 import type { Logger } from "../../src/logger.ts";
 import { deliver } from "../deliver.ts";
 import type { Store } from "../store.ts";
-import type { Author, PlatformSim, PostRequest, Thread } from "../types.ts";
+import type { Author, Message, PlatformSim, PostRequest, Thread } from "../types.ts";
 
 /** Octokit appends its own paths to this, so it must not end in a slash. */
 export const GITHUB_API_MOUNT = "/api/github";
@@ -14,6 +14,10 @@ const NAME = "widgets";
 const REPO_URL = `https://github.com/${OWNER}/${NAME}`;
 const COMMIT_SHA = "abc123def4567890abc123def4567890abc123de";
 const DISCUSSION_NODE_ID = "D_sim_discussion3";
+
+const DISCUSSION_COMMENT = "discussion_comment.created";
+/** Not a GitHub event name: the webhook is the same one, with the comment's `parent_id` set. */
+const DISCUSSION_REPLY = "discussion_comment.created.reply";
 
 const REPOSITORY = {
   id: 900001,
@@ -87,7 +91,12 @@ const THREADS: Thread[] = [
     title: "Ideas for v2",
     subtitle: `${OWNER}/${NAME} · discussion #3`,
     kinds: [
-      { id: "discussion_comment.created", label: "discussion_comment.created", hint: "A comment on the discussion." },
+      { id: DISCUSSION_COMMENT, label: "discussion_comment.created", hint: "A comment on the discussion." },
+      {
+        id: DISCUSSION_REPLY,
+        label: "discussion_comment.created (reply)",
+        hint: "A reply under the newest top-level comment. GitHub threads discussions one level deep, so the answer hangs off that same parent. With nothing above it, it is sent as a top-level comment instead.",
+      },
       { id: "discussion.created", label: "discussion.created", hint: "The discussion's own body, as it is opened." },
     ],
   },
@@ -125,7 +134,7 @@ function placeUrl(place: Place): string {
 
 type Built = { payload: Record<string, unknown>; refs: string[] };
 
-function build(place: Place, kind: string, author: Author, text: string): Built | undefined {
+function build(place: Place, kind: string, author: Author, text: string, parentId: number | undefined): Built | undefined {
   const user = userOf(author);
   const now = new Date().toISOString();
   const id = nextId();
@@ -272,7 +281,7 @@ function build(place: Place, kind: string, author: Author, text: string): Built 
     };
   }
 
-  if (kind === "discussion_comment.created" && place.at === "discussion") {
+  if ((kind === DISCUSSION_COMMENT || kind === DISCUSSION_REPLY) && place.at === "discussion") {
     const nodeId = `DC_sim${id}`;
     return {
       refs: [nodeId],
@@ -281,6 +290,7 @@ function build(place: Place, kind: string, author: Author, text: string): Built 
         comment: {
           id,
           node_id: nodeId,
+          parent_id: parentId ?? null,
           body: text,
           html_url: `${url}#discussioncomment-${id}`,
           user,
@@ -330,6 +340,18 @@ function threadForCommit(sha: string): string | undefined {
 
 function threadForDiscussion(nodeId: string): string | undefined {
   return Object.entries(PLACES).find(([, place]) => place.at === "discussion" && place.nodeId === nodeId)?.[0];
+}
+
+function threadForDiscussionNumber(number: number): string | undefined {
+  return Object.entries(PLACES).find(([, place]) => place.at === "discussion" && place.number === number)?.[0];
+}
+
+/** A discussion comment is numbered once and spelled both ways, so its database id reads back off its node id. */
+function discussionCommentIds(message: Message): { id: string; databaseId: number } | undefined {
+  const nodeId = message.refs[0];
+  if (nodeId === undefined) return undefined;
+  const digits = /^DC_sim(\d+)$/.exec(nodeId)?.[1];
+  return digits === undefined ? undefined : { id: nodeId, databaseId: Number(digits) };
 }
 
 function createApi(store: Store, botName: string, log: Logger): Router {
@@ -396,10 +418,36 @@ function createApi(store: Store, botName: string, log: Logger): Router {
       return;
     }
 
+    if (operation.includes("DiscussionCommentIds")) {
+      const threadId = threadForDiscussionNumber(Number(variables?.number));
+      const nodes = store.messages
+        .filter((message) => message.threadId === threadId && message.kind === DISCUSSION_COMMENT)
+        .map(discussionCommentIds)
+        .filter((ids) => ids !== undefined);
+      // One page: no discussion here is long enough to need another.
+      const comments = { nodes, pageInfo: { hasNextPage: false, endCursor: null } };
+      response.json({ data: { repository: { discussion: { comments } } } });
+      return;
+    }
+
     if (operation.includes("addDiscussionComment")) {
+      const replyToId = variables?.replyToId;
+      if (typeof replyToId === "string") {
+        const parent = store.findByRef(replyToId);
+        if (parent === undefined) {
+          response.status(422).json({ errors: [{ message: `Could not resolve to a node with the id of '${replyToId}'` }] });
+          return;
+        }
+        if (parent.kind === DISCUSSION_REPLY) {
+          // GitHub threads discussions one level deep, and refuses in these words.
+          response.status(422).json({ errors: [{ message: "Parent comment is already in a thread, cannot reply to it" }] });
+          return;
+        }
+      }
+
       const posted = recordReply(
         threadForDiscussion(String(variables?.discussionId ?? "")),
-        "addDiscussionComment",
+        typeof replyToId === "string" ? "addDiscussionComment (threaded)" : "addDiscussionComment",
         variables?.body,
       );
       if (!posted) {
@@ -433,6 +481,17 @@ export function createGitHubSim(options: {
   const { settings, forwarderUrl, simUrl, botName, store, log } = options;
   const webhookUrl = `${forwarderUrl}${settings.path}`;
 
+  /** GitHub threads discussions one level deep, so a reply hangs off the newest top-level comment. */
+  function newestDiscussionComment(threadId: string): number | undefined {
+    for (let index = store.messages.length - 1; index >= 0; index -= 1) {
+      const message = store.messages[index];
+      if (message?.threadId === threadId && message.kind === DISCUSSION_COMMENT) {
+        return discussionCommentIds(message)?.databaseId;
+      }
+    }
+    return undefined;
+  }
+
   return {
     platform: "github",
     threads: THREADS,
@@ -443,13 +502,17 @@ export function createGitHubSim(options: {
     expectedApiUrl: `${simUrl}${GITHUB_API_MOUNT}`,
     api: createApi(store, botName, log),
 
-    async post({ threadId, kind, authorId, text }: PostRequest) {
+    async post({ threadId, kind: requested, authorId, text }: PostRequest) {
       const place = PLACES[threadId];
       const author = AUTHORS.find((candidate) => candidate.id === authorId);
       if (place === undefined) throw new Error(`unknown thread ${threadId}`);
       if (author === undefined) throw new Error(`unknown author ${authorId}`);
 
-      const built = build(place, kind, author, text);
+      const parentId = requested === DISCUSSION_REPLY ? newestDiscussionComment(threadId) : undefined;
+      // A reply needs something to hang off; with nothing above it there is only a top-level comment to send.
+      const kind = requested === DISCUSSION_REPLY && parentId === undefined ? DISCUSSION_COMMENT : requested;
+
+      const built = build(place, kind, author, text, parentId);
       if (built === undefined) throw new Error(`${kind} cannot be sent to ${threadId}`);
 
       const body = JSON.stringify(built.payload);
