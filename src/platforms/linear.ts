@@ -1,9 +1,5 @@
 import { LinearClient } from "@linear/sdk";
-import {
-  type EntityWebhookPayloadWithCommentData,
-  type EntityWebhookPayloadWithIssueData,
-  LinearWebhookClient,
-} from "@linear/sdk/webhooks";
+import { type EntityWebhookPayloadWithCommentData, LinearWebhookClient } from "@linear/sdk/webhooks";
 import type { RequestHandler } from "express";
 import type { LinearSettings } from "../config.ts";
 import type { Intake } from "../intake.ts";
@@ -43,7 +39,7 @@ export function createLinearMiddleware(
     await linear.createComment({ ...target, body: neutralizeMarkdownMentions(body) });
   }
 
-  async function react(target: { commentId: string } | { issueId: string }): Promise<void> {
+  async function react(target: { commentId: string }): Promise<void> {
     if (linear === undefined) {
       log.debug("skipping reaction: LINEAR_API_KEY is not set");
       return;
@@ -88,32 +84,6 @@ export function createLinearMiddleware(
     );
 
     if (accepted) void react({ commentId: comment.id });
-  });
-
-  handler.on("Issue", (payload: EntityWebhookPayloadWithIssueData) => {
-    if (payload.action !== "create") return;
-    const issue = payload.data;
-    const description = issue.description ?? "";
-    if (!trigger.test(description)) return;
-
-    const accepted = intake(
-      {
-        id: `linear:Issue:${issue.id}:${issue.updatedAt}`,
-        platform: "linear",
-        kind: "issue",
-        url: payload.url ?? issue.url,
-        text: description,
-        prompt: trigger.strip(description),
-        author: actorName(payload.actor),
-        title: issue.title,
-        conversationKey: `linear:${issue.id}`,
-        raw: payload,
-        postReply: (body) => postReply({ issueId: issue.id }, body),
-      },
-      { isBot: payload.actor?.type !== "user" },
-    );
-
-    if (accepted) void react({ issueId: issue.id });
   });
 
   // Reads and verifies the raw request stream itself, so nothing may parse the

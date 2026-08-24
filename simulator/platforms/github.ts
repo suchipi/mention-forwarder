@@ -58,7 +58,6 @@ const THREADS: Thread[] = [
     subtitle: `${OWNER}/${NAME}#7 · issue`,
     kinds: [
       { id: "issue_comment.created", label: "issue_comment.created", hint: "A new comment on the issue." },
-      { id: "issues.opened", label: "issues.opened", hint: "The issue's own body, as it is opened." },
     ],
   },
   {
@@ -77,7 +76,6 @@ const THREADS: Thread[] = [
         label: "pull_request_review.submitted",
         hint: "A review summary body. The forwarder answers in the PR conversation.",
       },
-      { id: "pull_request.opened", label: "pull_request.opened", hint: "The PR description, as it is opened." },
     ],
   },
   {
@@ -97,7 +95,6 @@ const THREADS: Thread[] = [
         label: "discussion_comment.created (reply)",
         hint: "A reply under the newest top-level comment. GitHub threads discussions one level deep, so the answer hangs off that same parent. With nothing above it, it is sent as a top-level comment instead.",
       },
-      { id: "discussion.created", label: "discussion.created", hint: "The discussion's own body, as it is opened." },
     ],
   },
 ];
@@ -170,28 +167,6 @@ function build(place: Place, kind: string, author: Author, text: string, parentI
     };
   }
 
-  if (kind === "issues.opened" && place.at === "issue") {
-    const nodeId = `I_sim${place.number}`;
-    return {
-      refs: [nodeId],
-      payload: {
-        action: "opened",
-        issue: {
-          number: place.number,
-          title: place.title,
-          body: text,
-          html_url: url,
-          node_id: nodeId,
-          state: "open",
-          user,
-          created_at: now,
-          updated_at: now,
-        },
-        ...base,
-      },
-    };
-  }
-
   if (kind === "pull_request_review_comment.created" && place.at === "pull") {
     const nodeId = `PRRC_sim${id}`;
     return {
@@ -236,30 +211,6 @@ function build(place: Place, kind: string, author: Author, text: string, parentI
     };
   }
 
-  if (kind === "pull_request.opened" && place.at === "pull") {
-    const nodeId = `PR_sim${place.number}`;
-    return {
-      refs: [nodeId],
-      payload: {
-        action: "opened",
-        number: place.number,
-        pull_request: {
-          number: place.number,
-          title: place.title,
-          body: text,
-          html_url: url,
-          node_id: nodeId,
-          state: "open",
-          draft: false,
-          user,
-          created_at: now,
-          updated_at: now,
-        },
-        ...base,
-      },
-    };
-  }
-
   if (kind === "commit_comment.created" && place.at === "commit") {
     const nodeId = `CC_sim${id}`;
     return {
@@ -298,27 +249,6 @@ function build(place: Place, kind: string, author: Author, text: string, parentI
           updated_at: now,
         },
         discussion: { number: place.number, title: place.title, html_url: url, node_id: place.nodeId, user },
-        ...base,
-      },
-    };
-  }
-
-  if (kind === "discussion.created" && place.at === "discussion") {
-    return {
-      refs: [place.nodeId],
-      payload: {
-        action: "created",
-        discussion: {
-          number: place.number,
-          title: place.title,
-          body: text,
-          html_url: url,
-          node_id: place.nodeId,
-          state: "open",
-          user,
-          created_at: now,
-          updated_at: now,
-        },
         ...base,
       },
     };

@@ -45,14 +45,14 @@ Each thread offers the events that can actually happen there. Between them they 
 
 | Platform | Thread | Events |
 | --- | --- | --- |
-| GitHub | Issue #7 | `issue_comment.created`, `issues.opened` |
-| GitHub | Pull request #42 | `issue_comment.created`, `pull_request_review_comment.created`, `pull_request_review.submitted`, `pull_request.opened` |
+| GitHub | Issue #7 | `issue_comment.created` |
+| GitHub | Pull request #42 | `issue_comment.created`, `pull_request_review_comment.created`, `pull_request_review.submitted` |
 | GitHub | Commit | `commit_comment.created` |
-| GitHub | Discussion #3 | `discussion_comment.created`, top level and as a reply, plus `discussion.created` |
+| GitHub | Discussion #3 | `discussion_comment.created`, top level and as a reply |
 | Slack | `#general` | `app_mention`, and a plain message with no mention, which is forwarded only if it carries `@sim-bot` |
 | Slack | `#general` thread | `app_mention` inside an existing thread |
 | Slack | Direct message | `message.im` |
-| Linear | ACM-12, ACM-13 | `Comment.create`, a threaded `Comment.create`, `Issue.create` |
+| Linear | ACM-12, ACM-13 | `Comment.create`, a threaded `Comment.create` |
 
 The author picker includes a bot, which is how you check that `ignoreBots` does what you expect. Every message card shows the response the forwarder gave, and expands to the exact signed payload that was sent.
 

@@ -203,7 +203,6 @@ after(() => {
 
 const GITHUB_EVENTS = [
   { thread: "issue-7", kind: "issue_comment.created", mentionKind: "issue_comment", conversation: "github:acme/widgets#7" },
-  { thread: "issue-7", kind: "issues.opened", mentionKind: "issue", conversation: "github:acme/widgets#7" },
   { thread: "pull-42", kind: "issue_comment.created", mentionKind: "issue_comment", conversation: "github:acme/widgets#42" },
   {
     thread: "pull-42",
@@ -217,7 +216,6 @@ const GITHUB_EVENTS = [
     mentionKind: "pull_request_review",
     conversation: "github:acme/widgets#42",
   },
-  { thread: "pull-42", kind: "pull_request.opened", mentionKind: "pull_request", conversation: "github:acme/widgets#42" },
   {
     thread: "commit",
     kind: "commit_comment.created",
@@ -234,12 +232,6 @@ const GITHUB_EVENTS = [
     thread: "discussion-3",
     kind: "discussion_comment.created.reply",
     mentionKind: "discussion_comment",
-    conversation: "github:acme/widgets/discussions/3",
-  },
-  {
-    thread: "discussion-3",
-    kind: "discussion.created",
-    mentionKind: "discussion",
     conversation: "github:acme/widgets/discussions/3",
   },
 ];
@@ -377,10 +369,6 @@ test("linear: every event a thread offers reaches the command", async () => {
 
   const reply = await forwarded("linear", "acm-12", "Comment.create.reply", "user-riley", "linear threaded comment");
   assert.equal(reply.conversationKey, "linear:issue-sim-acm-12");
-
-  const issue = await forwarded("linear", "acm-13", "Issue.create", "user-lily", "linear issue body");
-  assert.equal(issue.kind, "issue");
-  assert.equal(issue.conversationKey, "linear:issue-sim-acm-13");
 });
 
 test("linear: the reaction and the reply come back into the thread", async () => {

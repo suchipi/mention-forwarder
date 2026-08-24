@@ -10,7 +10,6 @@ import type { Author, PlatformSim, PostRequest, Thread } from "../types.ts";
 export const LINEAR_API_MOUNT = "/api/linear";
 
 const ORGANIZATION = "org-simulator";
-const TEAM = { id: "team-sim-acm", key: "ACM", name: "Acme" };
 
 const AUTHORS: Author[] = [
   { id: "user-lily", name: "Lily Skye", isBot: false },
@@ -46,7 +45,6 @@ const THREADS: Thread[] = Object.entries(PLACES).map(([id, place]) => ({
       label: "Comment.create (threaded reply)",
       hint: "A reply under the newest top-level comment. The forwarder answers in that same sub-thread. With nothing above it, it is sent as a top-level comment instead.",
     },
-    { id: "Issue.create", label: "Issue.create", hint: "The issue description, as the issue is created." },
   ],
 }));
 
@@ -66,7 +64,7 @@ function actorFor(author: Author): Record<string, unknown> {
 
 type Built = { payload: Record<string, unknown>; refs: string[] };
 
-function build(place: Place, kind: string, author: Author, text: string, parentId: string | undefined): Built {
+function build(place: Place, author: Author, text: string, parentId: string | undefined): Built {
   const now = new Date().toISOString();
   const envelope = {
     action: "create",
@@ -76,28 +74,6 @@ function build(place: Place, kind: string, author: Author, text: string, parentI
     webhookId: "webhook-simulator",
     webhookTimestamp: Date.now(),
   };
-
-  if (kind === "Issue.create") {
-    return {
-      refs: [place.id],
-      payload: {
-        ...envelope,
-        type: "Issue",
-        url: place.url,
-        data: {
-          id: place.id,
-          title: place.title,
-          description: text,
-          identifier: place.identifier,
-          number: Number(place.identifier.split("-")[1] ?? 0),
-          url: place.url,
-          createdAt: now,
-          updatedAt: now,
-          team: TEAM,
-        },
-      },
-    };
-  }
 
   const id = nextCommentId();
   return {
@@ -158,7 +134,7 @@ function createApi(store: Store, botName: string, log: Logger): Router {
     }
 
     if (operation.includes("reactionCreate")) {
-      const ref = String(input.commentId ?? input.issueId ?? "");
+      const ref = String(input.commentId ?? "");
       const target = store.findByRef(ref);
       if (target === undefined) {
         log.warn("reaction targets an unknown message", { ref });
@@ -233,7 +209,7 @@ export function createLinearSim(options: {
       // A reply needs something to hang off; with nothing above it there is only a top-level comment to send.
       const kind = requested === "Comment.create.reply" && parentId === undefined ? "Comment.create" : requested;
 
-      const built = build(place, kind, author, text, parentId);
+      const built = build(place, author, text, parentId);
       const body = JSON.stringify(built.payload);
       const headers = { "linear-signature": createHmac("sha256", settings.webhookSecret).update(body).digest("hex") };
 

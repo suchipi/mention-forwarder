@@ -151,13 +151,11 @@ When the reply is read depends on the lifecycle:
 | GitHub issue or PR comment | A new comment on that issue or PR |
 | GitHub **inline review comment** | A reply inside that same review thread |
 | GitHub review summary | A comment on the PR conversation — a review body has no thread of its own |
-| GitHub new issue or PR body | A comment on it |
 | GitHub commit comment | Another comment on that commit |
-| GitHub discussion, or a comment on one | A discussion comment, threaded under the comment that mentioned you, or under that comment's parent when the mention is itself a reply: GitHub threads discussions only one level deep |
+| GitHub discussion comment | A discussion comment, threaded under the comment that mentioned you, or under that comment's parent when the mention is itself a reply: GitHub threads discussions only one level deep |
 | Slack channel mention | A threaded reply under the message |
 | Slack DM | The next message in that DM |
 | Linear comment | A threaded reply under the top-level comment |
-| Linear issue description | A comment on the issue |
 
 Replying needs write credentials, the same ones the acknowledgement reaction uses: a GitHub App or token, a Slack bot token with `chat:write`, and `LINEAR_API_KEY`. A reply that fails is logged and never stops the command.
 
@@ -226,7 +224,7 @@ Pick one of the two options below. Both use the same code path, so `GITHUB_WEBHO
 2. **Payload URL**: `https://your-tunnel.example.com/github/webhooks`
 3. **Content type**: `application/json` — the forwarder rejects `form-urlencoded`.
 4. **Secret**: invent a long random string. Put the same value in `.env` as `GITHUB_WEBHOOK_SECRET`.
-5. **Which events?** → *Let me select individual events*, then tick: **Issue comments**, **Pull request review comments**, **Pull request reviews**, **Issues**, **Pull requests**, **Commit comments**, **Discussions**, **Discussion comments**.
+5. **Which events?** → *Let me select individual events*, then tick: **Issue comments**, **Pull request review comments**, **Pull request reviews**, **Commit comments**, **Discussion comments**.
 6. To let the bot react and reply, create a personal access token with write access to those repos and set `GITHUB_TOKEN`.
 
 **Option B — a GitHub App.** Better if you want coverage across many repos from one webhook.
@@ -269,7 +267,7 @@ A message that mentions the bot **and** carries a phrase is delivered twice, onc
 1. **Settings → API → Webhooks → New webhook**.
 2. **URL**: `https://your-tunnel.example.com/linear/webhooks`
 3. Copy the **signing secret** it shows you into `.env` as `LINEAR_WEBHOOK_SECRET`.
-4. Under data change events, enable **Comments** and **Issues**.
+4. Under data change events, enable **Comments**.
 5. To let the bot react and reply, create a personal API key under **Settings → API** and set `LINEAR_API_KEY`.
 
 Like GitHub, Linear's plain webhooks don't say "you were mentioned", so `linear.triggerPhrases` is matched against the comment body. Use a literal phrase you type as text (`@my-bot`) rather than a real Linear user mention, since Linear stores a person-mention in a rendered form that won't match a bare `@name`. If you want to match a real mention, run once with `"logPayloads": true`, mention someone, and copy the exact body text out of the logged payload.
@@ -344,19 +342,17 @@ If you are not sure what a given person's value is, run once with `"logLevel": "
 | GitHub | Comment on an issue or PR | `issue_comment` |
 | GitHub | Inline code review comment | `pull_request_review_comment` |
 | GitHub | Review summary body | `pull_request_review` |
-| GitHub | New issue's body | `issue` |
-| GitHub | New PR's description | `pull_request` |
 | GitHub | Comment on a commit | `commit_comment` |
-| GitHub | New discussion, or a comment on one | `discussion`, `discussion_comment` |
+| GitHub | Comment on a discussion | `discussion_comment` |
 | Slack | Bot mentioned in a channel or thread | `app_mention` |
 | Slack | Message carrying a `slack.triggerPhrases` phrase, mentioning nobody | `message.channels`, `message.groups`, `message.mpim` |
 | Slack | Any message in a DM with the bot — no mention needed | `message.im` |
 | Linear | New comment on an issue | `comment` |
-| Linear | New issue's description | `issue` |
 
 Deliberately **not** included:
 
-- **Edits.** Only newly created comments, issues, and PRs fire. Editing an old comment to add the phrase will not trigger anything, which also means routine edits can't re-trigger work. The same holds for DMs: an edited message is ignored.
+- **Edits.** Only newly created comments fire. Editing an old comment to add the phrase will not trigger anything, which also means routine edits can't re-trigger work. The same holds for DMs: an edited message is ignored.
+- **The body of a new issue, PR, or discussion.** Only comments count on every platform, so mentioning the bot in a GitHub PR description or a Linear issue description does nothing; comment on it afterwards instead.
 - **Slack chatter that matches nothing.** Outside a one-to-one DM a message must mention the bot or carry a trigger phrase; with no phrases configured, a real mention is the only way in.
 - **Your command's stdout.** That goes to the log. Replies are opt-in through the reply file, so ordinary logging never leaks into a comment.
 

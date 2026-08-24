@@ -78,7 +78,6 @@ const DISCUSSION_COMMENT_PAGES = 20;
  * wants.
  */
 type DiscussionReplyTo =
-  | { at: "discussion" }
   | { at: "comment"; nodeId: string }
   | { at: "parentOf"; discussionNumber: number; parentId: number };
 
@@ -164,7 +163,6 @@ export function createGitHubMiddleware(
     repo: string,
     target: DiscussionReplyTo,
   ): Promise<string | null> {
-    if (target.at === "discussion") return null;
     if (target.at === "comment") return target.nodeId;
     try {
       const nodeId = await topLevelCommentNodeId(api, owner, repo, target.discussionNumber, target.parentId);
@@ -326,48 +324,6 @@ export function createGitHubMiddleware(
     );
   });
 
-  webhooks.on("issues.opened", ({ id, payload }) => {
-    offer(
-      id,
-      {
-        kind: "issue",
-        body: payload.issue.body,
-        url: payload.issue.html_url,
-        nodeId: payload.issue.node_id,
-        author: payload.issue.user?.login ?? "",
-        isBot: payload.issue.user?.type === "Bot",
-        title: payload.issue.title,
-        conversationKey: threadKey(payload.repository.full_name, payload.issue.number),
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        reply: { via: "issueComment", issueNumber: payload.issue.number },
-      },
-      payload.installation?.id,
-      payload,
-    );
-  });
-
-  webhooks.on("pull_request.opened", ({ id, payload }) => {
-    offer(
-      id,
-      {
-        kind: "pull_request",
-        body: payload.pull_request.body,
-        url: payload.pull_request.html_url,
-        nodeId: payload.pull_request.node_id,
-        author: payload.pull_request.user.login,
-        isBot: payload.pull_request.user.type === "Bot",
-        title: payload.pull_request.title,
-        conversationKey: threadKey(payload.repository.full_name, payload.pull_request.number),
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        reply: { via: "issueComment", issueNumber: payload.pull_request.number },
-      },
-      payload.installation?.id,
-      payload,
-    );
-  });
-
   webhooks.on("commit_comment.created", ({ id, payload }) => {
     offer(
       id,
@@ -411,27 +367,6 @@ export function createGitHubMiddleware(
               ? { at: "comment", nodeId: payload.comment.node_id }
               : { at: "parentOf", discussionNumber: payload.discussion.number, parentId: payload.comment.parent_id },
         },
-      },
-      payload.installation?.id,
-      payload,
-    );
-  });
-
-  webhooks.on("discussion.created", ({ id, payload }) => {
-    offer(
-      id,
-      {
-        kind: "discussion",
-        body: payload.discussion.body,
-        url: payload.discussion.html_url,
-        nodeId: payload.discussion.node_id,
-        author: payload.discussion.user?.login ?? "",
-        isBot: payload.discussion.user?.type === "Bot",
-        title: payload.discussion.title,
-        conversationKey: `github:${payload.repository.full_name}/discussions/${payload.discussion.number}`,
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        reply: { via: "discussionComment", discussionNodeId: payload.discussion.node_id, replyTo: { at: "discussion" } },
       },
       payload.installation?.id,
       payload,
