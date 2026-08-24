@@ -26,6 +26,8 @@ cp mention-forwarder.config.example.json mention-forwarder.config.json
 cp .env.example .env
 ```
 
+The example config spells out every field at its default, so you can delete whatever you do not need; only `command` is required. `github.allowedSources` is the one worth deleting unless you mean to pin it, since setting it stops the daily refresh of GitHub's ranges.
+
 Then edit the two files you just copied:
 
 - `mention-forwarder.config.json` — what to run, and which phrase counts as a mention.
@@ -172,8 +174,20 @@ Nothing else about the text changes, and a reply that mentions nobody goes out b
 
 Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 
+A JSON Schema sits next to it, so an editor can complete field names and explain each one on hover. Point at it from the top of your config:
+
+```json
+{
+  "$schema": "./mention-forwarder.config.schema.json",
+  "command": ["claude", "-p", "{{prompt}}"]
+}
+```
+
+The path is relative to the config file, and a URL works too if yours lives somewhere else. The schema is generated from the same definition the forwarder validates against, so the two cannot drift apart.
+
 | Field | Default | Meaning |
 | --- | --- | --- |
+| `$schema` | *none* | Path or URL to the JSON Schema above. Read by your editor and ignored by the forwarder. |
 | `command` | *required* | Argv array. `command[0]` is the program; it must be on `PATH` or an absolute path. |
 | `cwd` | the forwarder's directory | Working directory for the command. |
 | `env` | `{}` | Extra environment variables. Values may use `{{placeholders}}`. |
@@ -181,11 +195,11 @@ Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 | `maxPayloadBytes` | `5242880` (5 MiB) | Largest webhook body to accept. Anything bigger, or anything sent without a `Content-Length`, is refused before it is read. See [Who can reach it](#who-can-reach-it). |
 | `trustedProxies` | `["loopback", "uniquelocal"]` | Which hops may be believed when they set `X-Forwarded-For`. Anything Express accepts for `trust proxy` works here. |
 | `lifecycle` | `"per-mention"` | `per-mention` starts the command fresh each time; `per-conversation` keeps one running per thread. See [Command lifecycles](#command-lifecycles). |
-| `sessionIdleMs` | `0` | `per-conversation` only: close a session after this long with no new mentions. `0` keeps it alive indefinitely. |
-| `replyDebounceMs` | `1500` | `per-conversation` only: how long writes to a reply file must settle before it is posted. |
+| `sessionIdleMs` | `0` | Used only when `lifecycle` is set to `per-conversation`: close a session after this long with no new mentions. `0` keeps it alive indefinitely. |
+| `replyDebounceMs` | `1500` | Used only when `lifecycle` is set to `per-conversation`: how long writes to a reply file must settle before it is posted. |
 | `replyDir` | a fresh temp directory | Where reply files live. Set it if you want to inspect them. |
 | `timeoutMs` | `0` | Kill the command after this many milliseconds. `0` means never — the right choice for a long-running agent. In `per-conversation` mode this caps a session's total lifetime. |
-| `includeRawPayload` | `false` | Add the platform's untouched webhook payload as `raw` in the stdin JSON. |
+| `includeRawPayload` | `false` | Add the platform's untouched webhook payload as `raw` in the stdin JSON. There is no `{{raw}}` placeholder, but `{{json}}` and `MENTION_JSON` grow to include it, so read it from stdin. |
 | `logPayloads` | `false` | Log every incoming delivery as pretty-printed JSON — including ones that matched no trigger phrase, and event types the forwarder doesn't act on. Independent of `logLevel`, so turning it on is enough on its own. |
 | `logLevel` | `"info"` | `debug`, `info`, `warn`, or `error`. |
 | `maxConcurrentConversations` | `4` | How many different threads may be in flight at once. |
@@ -199,7 +213,7 @@ Everything lives in `mention-forwarder.config.json`. Only `command` is required.
 | `slack.triggerPhrases` | `[]` | An optional *second* way in, not a filter: a real mention always counts, and so does any message carrying one of these. Needs extra subscriptions; see [Slack](#slack). |
 | `slack.path` | `/slack/events` | Route Slack posts to. |
 | `<platform>.allowedAuthors` | `[]` | Only these authors may trigger the command on that platform. Empty means anyone may. Matched case-insensitively; [What `allowedAuthors` matches](#what-allowedauthors-matches) says exactly which name each platform hands over. |
-| `<platform>.allowedSources` | its published ranges | Addresses or CIDR ranges that platform's webhooks may arrive from. Replaces the built-in list; an empty list means no source check at all, and loopback always passes either way. See [Who can reach it](#who-can-reach-it). |
+| `<platform>.allowedSources` | its published ranges | Addresses or CIDR ranges that platform's webhooks may arrive from. Replaces the built-in list; an empty list means no source check at all, and loopback always passes either way. Setting the GitHub one also pins it, stopping the daily refresh. See [Who can reach it](#who-can-reach-it). |
 | `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
 | `linear.apiUrl` | Linear's own | Override the Linear GraphQL endpoint. For a local stub. |
@@ -310,7 +324,7 @@ A request has four things to get past before it can run your command, and it fai
 | Check | What it does |
 | --- | --- |
 | **Size** | A body over `maxPayloadBytes` (5 MiB by default) is refused with `413`, and one that arrives without a `Content-Length` with `411`. This happens first because the libraries underneath buffer the whole body before they look at the signature, so an unsigned request could otherwise spend as much of your memory as it liked. |
-| **Source** | GitHub and Linear both publish the addresses their webhooks come from, and anything else gets `403`. GitHub's list is read from `api.github.com/meta` at startup and once a day after that, falling back to a bundled copy if that call fails; Linear's is bundled, because Linear publishes no equivalent endpoint. **Slack is not checked**, because Slack runs on AWS and publishes no ranges. Loopback always passes, which is what a tunnel arrives on. Override any of it with `<platform>.allowedSources`. |
+| **Source** | GitHub and Linear both publish the addresses their webhooks come from, and anything else gets `403`. GitHub's list is read from `api.github.com/meta` at startup and once a day after that, falling back to a bundled copy if that call fails; Linear's is bundled, because Linear publishes no equivalent endpoint. **Slack is not checked**, because Slack runs on AWS and publishes no ranges. Loopback always passes, which is what a tunnel arrives on. Override any of it with `<platform>.allowedSources`, which for GitHub also pins the list: neither the startup fetch nor the daily refresh runs once you set it. |
 | **Signature** | HMAC-SHA256 for GitHub and Linear, Slack's own scheme for Slack, each compared in constant time. Slack rejects anything signed more than five minutes ago and Linear more than a minute, so a captured delivery cannot be replayed later. |
 | **Author** | `ignoreBots` and `ignoreAuthors` drop mentions you don't want; `<platform>.allowedAuthors` inverts that into a list of the only people who may trigger the command at all. Worth setting on a public repo, where otherwise anyone who can leave a comment can start your agent. |
 
@@ -411,6 +425,7 @@ Turn on `"logLevel": "debug"` to see every delivery and why any were ignored. Ad
 ```sh
 npm test        # unit tests, plus an end-to-end run against signed webhooks from all three platforms
 npm run typecheck
+npm run schema  # regenerate mention-forwarder.config.schema.json after changing the config schema
 ```
 
 The end-to-end test boots the real CLI, posts genuinely signed GitHub, Slack, and Linear payloads at it, and asserts on what the child process received through all three channels. A second one drives the same CLI through the simulator below, covering every event each platform can send, the acknowledgement reaction, and the reply on its way back.
@@ -426,6 +441,7 @@ npm run sim -- --platform github # the simulator, at http://127.0.0.1:4000
 | --- | --- |
 | `src/cli.ts` | Entry point: arguments, `.env`, wiring, startup summary. |
 | `src/config.ts` | Config schema and validation; decides which platforms are on. |
+| `scripts/generate-schema.ts` | Publishes that schema as `mention-forwarder.config.schema.json`, which editors read. |
 | `src/platforms/*.ts` | One adapter per platform: verify, detect the mention, normalize, react. |
 | `src/intake.ts` | Shared policy: de-duplicate, filter authors, enqueue. |
 | `src/queue.ts` | Serial within a conversation, parallel across conversations. |

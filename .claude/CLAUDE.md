@@ -16,6 +16,7 @@ One HTTP port receives webhooks from GitHub, Slack, and Linear, decides which de
 | `node --test test/queue.test.ts` | One file. |
 | `node --test --test-name-pattern "coalesces a burst" test/reply.test.ts` | One test. |
 | `npm run typecheck` | `tsc --noEmit`. There is no build step and no linter or formatter configured. |
+| `npm run schema` | Regenerates `mention-forwarder.config.schema.json` from `src/config.ts`. Run it after any change to the config schema; `test/schema.test.ts` fails while the committed file is stale. |
 | `npm start` | Needs `mention-forwarder.config.json` and `.env`, both gitignored. Copy the `.example` files. |
 | `npm run sim:forwarder` + `npm run sim -- --platform github` | Two terminals; the local end-to-end setup, see [Simulator](#simulator). |
 
@@ -60,9 +61,14 @@ The `Mention` type in `src/types.ts` is serialized to the child command's stdin,
 
 - `src/types.ts` for the shape
 - `PLACEHOLDERS` and `fields()` in `src/template.ts`, which is the single source that feeds both `{{placeholder}}` substitution and the `MENTION_*` env vars, so the two can never disagree
+- `PLACEHOLDER_LIST` in `src/config.ts`, the hover text for `command` and `env`, then `npm run schema`
 - the placeholder and config tables in `README.md`
 
 Unknown `{{placeholders}}` in `command` or `env` are rejected at startup by `checkTemplates` in `src/config.ts`.
+
+### The config schema documents itself
+
+`fileSchema` in `src/config.ts` is both the validator and the source of `mention-forwarder.config.schema.json`, which `scripts/generate-schema.ts` writes and editors read for completion and hover text. So a `.describe()` there is user-facing documentation, not a code comment: it must name the valid values, not just the default, and `PLACEHOLDER_LIST` is deliberately repeated into both `command` and `env` so neither hover sends the reader to the other. `test/schema.test.ts` enforces the parts a reviewer would miss - a stale committed file, a field with no description, a placeholder absent from either list.
 
 ### Two lifecycles, two reply modes
 

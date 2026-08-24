@@ -1,17 +1,59 @@
 {
+  "$schema": "./mention-forwarder.config.schema.json",
   "command": ["claude", "-p", "{{prompt}}"],
-  "lifecycle": "per-mention",
+  "cwd": ".",
+  "env": { "AGENT_SOURCE": "{{platform}}" },
   "port": 3000,
   "maxPayloadBytes": 5242880,
+  "trustedProxies": ["loopback", "uniquelocal"],
+  "timeoutMs": 0,
+  "lifecycle": "per-mention",
+  "sessionIdleMs": 0,
+  "replyDebounceMs": 1500,
+  "replyDir": ".replies",
+  "includeRawPayload": false,
+  "logPayloads": false,
   "logLevel": "info",
   "maxConcurrentConversations": 4,
   "reactionEmoji": "eyes",
-  "replyDebounceMs": 1500,
-  "includeRawPayload": false,
-  "logPayloads": false,
-  "timeoutMs": 0,
   "ignoreBots": true,
   "ignoreAuthors": [],
-  "github": { "triggerPhrases": ["@my-bot"], "allowedAuthors": [] },
-  "linear": { "triggerPhrases": ["@my-bot"], "allowedAuthors": [] }
+  "github": {
+    "path": "/github/webhooks",
+    "triggerPhrases": ["@my-bot"],
+    "allowedAuthors": [],
+    "allowedSources": [
+      "192.30.252.0/22",
+      "185.199.108.0/22",
+      "140.82.112.0/20",
+      "143.55.64.0/20",
+      "2a0a:a440::/29",
+      "2606:50c0::/32"
+    ],
+    "apiUrl": "https://api.github.com"
+  },
+  "slack": {
+    "path": "/slack/events",
+    "triggerPhrases": [],
+    "allowedAuthors": [],
+    "allowedSources": [],
+    "apiUrl": "https://slack.com/api/"
+  },
+  "linear": {
+    "path": "/linear/webhooks",
+    "triggerPhrases": ["@my-bot"],
+    "allowedAuthors": [],
+    "allowedSources": [
+      "35.231.147.226",
+      "35.243.134.228",
+      "35.196.141.51",
+      "34.140.253.14",
+      "34.38.87.206",
+      "34.62.119.29",
+      "34.134.222.122",
+      "35.222.25.142",
+      "34.60.255.158"
+    ],
+    "apiUrl": "https://api.linear.app/graphql"
+  }
 }

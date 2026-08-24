@@ -1,4 +1,5 @@
 {
+  "$schema": "../mention-forwarder.config.schema.json",
   "command": ["node", "simulator/echo-command.ts"],
   "port": 3000,
   "logLevel": "info",

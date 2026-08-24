@@ -9,7 +9,7 @@ export type Mention = {
   /** Unique per delivery. Repeat deliveries of the same id are dropped as webhook retries. */
   id: string;
   platform: Platform;
-  /** Platform event name, e.g. `issue_comment`, `app_mention`, `Comment`. */
+  /** Platform event name, e.g. `issue_comment`, `app_mention`, `comment`. */
   kind: string;
   /** Permalink to the comment or message that did the mentioning. */
   url: string;

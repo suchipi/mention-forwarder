@@ -3,4 +3,5 @@ node_modules/
 .env
 mention-forwarder.config.json
 *.pem
+.replies/
 simulator/.replies/
