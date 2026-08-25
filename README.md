@@ -263,10 +263,11 @@ Pick one of the two options below. Both use the same code path, so `GITHUB_WEBHO
    - `chat.getPermalink` needs no scope, so `{{url}}` works either way.
 3. **Install to Workspace**, then copy the **Bot User OAuth Token** (`xoxb-…`) into `.env` as `SLACK_BOT_TOKEN`.
 4. **Basic Information → Signing Secret** → `.env` as `SLACK_SIGNING_SECRET`.
-5. **Start the forwarder now** — the next step makes Slack call it immediately.
-6. **Event Subscriptions** → toggle on → **Request URL**: `https://your-tunnel.example.com/slack/events`. Slack posts a challenge and expects an answer within seconds; you should see a green *Verified*.
-7. Still on that page, **Subscribe to bot events** → add `app_mention`; `message.im` too if you want DMs, and `message.channels`, `message.groups`, or `message.mpim` if you set `slack.triggerPhrases`. Reinstall the app if Slack asks.
-8. In Slack, invite the bot to each channel you want it to listen in: `/invite @your-bot`. **If the bot is not in the channel, Slack does not deliver the event** — this is the most common reason nothing happens.
+5. **Settings → Socket Mode** → leave **Enable Socket Mode** off. With it on, Slack delivers events over a WebSocket it opens itself and never posts to the Request URL, which keeps its green *Verified* while nothing ever arrives. The forwarder is HTTP-only and has no app-level token to open that socket with.
+6. **Start the forwarder now** — the next step makes Slack call it immediately.
+7. **Event Subscriptions** → toggle on → **Request URL**: `https://your-tunnel.example.com/slack/events`. Slack posts a challenge and expects an answer within seconds; you should see a green *Verified*.
+8. Still on that page, **Subscribe to bot events** → add `app_mention`; `message.im` too if you want DMs, and `message.channels`, `message.groups`, or `message.mpim` if you set `slack.triggerPhrases`. Reinstall the app if Slack asks.
+9. In Slack, invite the bot to each channel you want it to listen in: `/invite @your-bot`. **If the bot is not in the channel, Slack does not deliver the event** — this is the most common reason nothing happens.
 
 Slack tells us directly when the bot is mentioned, so no trigger phrase is needed: a real mention always counts, whatever `slack.triggerPhrases` says. Setting phrases adds a second way in rather than narrowing the first, so a channel message carrying one is forwarded even though it mentions nobody. That is how you use the same written phrase you already use on GitHub and Linear, or a word that is nobody's handle at all.
 
@@ -401,6 +402,7 @@ GitHub only accepts its own fixed set of reactions. `eyes`, `+1`, `-1`, `laugh`,
 | Nothing happens, no log line at all | The request isn't arriving. Load your tunnel's URL in a browser: a `404` means it reached the forwarder, and a timeout or a tunnel error page means it did not. Then check the platform's own delivery log (GitHub: *Recent Deliveries* on the webhook; Slack: the Event Subscriptions page; Linear: the webhook's history). |
 | GitHub replies `400`/`401` | The secret doesn't match, or the webhook's content type isn't `application/json`. |
 | Slack won't verify the Request URL | The forwarder has to be running and reachable *before* you save the URL. |
+| Slack's Request URL says *Verified* but no Slack event ever arrives | Socket Mode is on, under **Settings → Socket Mode**. Slack then delivers over a WebSocket it opens itself and never posts to the Request URL, so the URL stays green and the forwarder's log stays empty. Everything else — scopes, subscriptions, channel membership, a hand-signed `curl` to `/slack/events` — looks correct while this is on. |
 | Slack mention in a channel does nothing | The bot isn't in that channel. `/invite @your-bot`. |
 | Linear returns `400` on everything | Wrong secret, or your system clock is off by more than a minute. |
 | Deliveries come back `403` | The source check refused them. The log names the address it saw. If your tunnel or proxy is not loopback or on a private network, add it to `trustedProxies`; if the platform has moved to a new range, add it to `<platform>.allowedSources`. |
