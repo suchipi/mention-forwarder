@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { after, test } from "node:test";
 import express from "express";
-import type { Config, GitHubSettings, SlackSettings } from "../src/config.ts";
+import type { Config, GitHubSettings, LinearSettings, SlackSettings } from "../src/config.ts";
 import { createLogger } from "../src/logger.ts";
 import { createSizeGate, createSourceGuard } from "../src/request-guard.ts";
 
@@ -61,6 +61,19 @@ function slack(allowedSources: string[] | undefined): SlackSettings {
     apiUrl: undefined,
     signingSecret: "s",
     botToken: "xoxb-test",
+  };
+}
+
+/** Linear rather than GitHub wherever `...default` is under test: its list is bundled, so nothing is fetched. */
+function linear(allowedSources: string[] | undefined): LinearSettings {
+  return {
+    path: "/linear/webhooks",
+    triggerPhrases: ["@my-bot"],
+    allowedAuthors: [],
+    allowedSources,
+    apiUrl: undefined,
+    webhookSecret: "s",
+    apiKey: undefined,
   };
 }
 
@@ -205,5 +218,44 @@ test("an IPv6 range is matched, and a mapped IPv4 address is read as IPv4", asyn
 test("an unreadable entry in allowedSources is dropped rather than trusted", async () => {
   const guard = createSourceGuard(baseConfig({ github: github(["not-an-address", "203.0.113.0/24"]) }), silent);
   assert.match(guard.describe("github"), /1 allowed source/);
+  guard.close();
+});
+
+test('"...default" keeps the built-in list and adds the entries beside it', async () => {
+  const guard = createSourceGuard(baseConfig({ linear: linear(["...default", "203.0.113.7"]) }), silent);
+  const url = await serve((app) => {
+    app.set("trust proxy", ["loopback", "uniquelocal"]);
+    app.post("/hook", guard.middlewareFor("linear"), (_request, response) => response.send("through"));
+  });
+
+  const post = (from: string): Promise<Response> =>
+    fetch(`${url}/hook`, { method: "POST", body: "{}", headers: { "x-forwarded-for": from } });
+
+  // One of Linear's own published addresses, which a plain override would have dropped.
+  assert.equal(await (await post("35.231.147.226")).text(), "through");
+  assert.equal(await (await post("203.0.113.7")).text(), "through");
+  assert.equal((await post("198.51.100.9")).status, 403);
+  guard.close();
+});
+
+test('"...default" alone matches leaving allowedSources unset', async () => {
+  const unset = createSourceGuard(baseConfig({ linear: linear(undefined) }), silent);
+  const marker = createSourceGuard(baseConfig({ linear: linear(["...default"]) }), silent);
+  assert.equal(marker.describe("linear"), unset.describe("linear"));
+  unset.close();
+  marker.close();
+});
+
+test('a repeated "...default" does not count the built-in list twice', async () => {
+  const once = createSourceGuard(baseConfig({ linear: linear(["...default"]) }), silent);
+  const twice = createSourceGuard(baseConfig({ linear: linear(["...default", "...default"]) }), silent);
+  assert.equal(twice.describe("linear"), once.describe("linear"));
+  once.close();
+  twice.close();
+});
+
+test('"...default" leaves slack unrestricted, because its built-in list is empty', async () => {
+  const guard = createSourceGuard(baseConfig({ slack: slack(["...default"]) }), silent);
+  assert.match(guard.describe("slack"), /any source/);
   guard.close();
 });

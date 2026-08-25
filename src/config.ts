@@ -25,7 +25,7 @@ const PHRASE_MATCHING =
   "Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`.";
 
 const SOURCE_OVERRIDE =
-  "Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on.";
+  "Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on.";
 
 const githubOverrides = platformOverrides.extend({
   path: platformOverrides.shape.path.describe(
@@ -35,7 +35,7 @@ const githubOverrides = platformOverrides.extend({
     `${PHRASE_INTRO} ${PHRASE_MATCHING} Required while GitHub is enabled: a GitHub webhook never reports that a mention happened, so without a phrase every comment would fire the command.`,
   ),
   allowedSources: platformOverrides.shape.allowedSources.describe(
-    `Addresses or CIDR ranges GitHub's webhooks may arrive from. ${SOURCE_OVERRIDE} Setting it also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back \`403\` until you edit this. Default: the hook ranges read from \`api.github.com/meta\` at startup and once a day after.`,
+    `Addresses or CIDR ranges GitHub's webhooks may arrive from. ${SOURCE_OVERRIDE} Setting it without \`"...default"\` also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back \`403\` until you edit this. Leaving \`"...default"\` in the array keeps the refresh running instead, re-expanding it against the ranges just fetched. Default: the hook ranges read from \`api.github.com/meta\` at startup and once a day after.`,
   ),
   /** Override the GitHub API base URL; for GitHub Enterprise Server or a local stub. */
   apiUrl: z

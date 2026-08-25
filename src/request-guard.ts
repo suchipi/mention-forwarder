@@ -31,6 +31,13 @@ const LINEAR_HOOKS = [
   "34.60.255.158",
 ];
 
+/**
+ * Stands in for the platform's own list inside `allowedSources`, so adding one
+ * address does not mean pinning the rest. Keeping it in GitHub's list is also
+ * what leaves the daily refresh running, so a rotated range still arrives.
+ */
+const DEFAULT_MARKER = "...default";
+
 const PUBLIC_GITHUB_API = "https://api.github.com";
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -82,27 +89,33 @@ type Allowed = { list: BlockList; restricted: boolean; sources: string[] };
  * in on. Beyond that each platform gets the addresses it actually calls from:
  * GitHub's read from its own API, Linear's published list, and for Slack nothing,
  * because Slack runs on AWS and publishes no ranges, leaving its signature as the
- * only control. `allowedSources` in the config replaces whichever list applies.
+ * only control. `allowedSources` in the config replaces whichever list applies,
+ * except where it contains `...default`, which expands to that list in place.
  *
  * The refresh runs in the background: the process starts on the bundled values
  * rather than waiting on a network call that may not answer.
  */
 export function createSourceGuard(config: Config, log: Logger): SourceGuard {
   const allowed = new Map<Platform, Allowed>();
+  // Kept unexpanded so a GitHub refresh can re-render it against the fetched
+  // ranges rather than accumulating every list ever seen.
+  const templates = new Map<Platform, string[]>();
 
   for (const platform of ["github", "slack", "linear"] as const) {
     const settings = config[platform];
     if (settings === undefined) continue;
-    const configured = settings.allowedSources;
-    const sources = configured ?? defaultSources(platform);
-    allowed.set(platform, build(sources, platform, log));
-    if (configured === undefined && platform === "github") void refreshGitHub(config, allowed, log);
+    const template = settings.allowedSources ?? [DEFAULT_MARKER];
+    templates.set(platform, template);
+    allowed.set(platform, build(expand(template, defaultSources(platform)), platform, log));
+    if (platform === "github" && template.includes(DEFAULT_MARKER)) {
+      void refreshGitHub(config, templates, allowed, log);
+    }
     void addApiHost(settings.apiUrl, platform, allowed, log);
   }
 
   const timer = setInterval(() => {
-    if (config.github?.allowedSources === undefined && allowed.has("github")) {
-      void refreshGitHub(config, allowed, log);
+    if (templates.get("github")?.includes(DEFAULT_MARKER) === true && allowed.has("github")) {
+      void refreshGitHub(config, templates, allowed, log);
     }
   }, REFRESH_INTERVAL_MS);
   timer.unref();
@@ -146,6 +159,17 @@ function defaultSources(platform: Platform): string[] {
   return [];
 }
 
+/** Replaces every `...default` with `defaults`, keeping the first copy of a repeated entry. */
+function expand(template: string[], defaults: string[]): string[] {
+  const out: string[] = [];
+  for (const entry of template) {
+    for (const source of entry === DEFAULT_MARKER ? defaults : [entry]) {
+      if (!out.includes(source)) out.push(source);
+    }
+  }
+  return out;
+}
+
 function build(sources: string[], platform: Platform, log: Logger): Allowed {
   const list = new BlockList();
   list.addSubnet("127.0.0.0", 8, "ipv4");
@@ -187,7 +211,12 @@ function normalize(ip: string | undefined): { address: string; type: "ipv4" | "i
   return undefined;
 }
 
-async function refreshGitHub(config: Config, allowed: Map<Platform, Allowed>, log: Logger): Promise<void> {
+async function refreshGitHub(
+  config: Config,
+  templates: Map<Platform, string[]>,
+  allowed: Map<Platform, Allowed>,
+  log: Logger,
+): Promise<void> {
   const base = (config.github?.apiUrl ?? PUBLIC_GITHUB_API).replace(/\/$/, "");
   // A stub or a tunnelled instance answers on loopback, which is already allowed
   // and has no /meta worth asking for.
@@ -201,7 +230,7 @@ async function refreshGitHub(config: Config, allowed: Map<Platform, Allowed>, lo
     if (hooks.length === 0) throw new Error("no hook ranges in the response");
 
     const previous = allowed.get("github");
-    const rebuilt = build(hooks, "github", log);
+    const rebuilt = build(expand(templates.get("github") ?? [DEFAULT_MARKER], hooks), "github", log);
     for (const source of previous?.sources ?? []) {
       if (!rebuilt.sources.includes(source) && add(rebuilt.list, source)) rebuilt.sources.push(source);
     }

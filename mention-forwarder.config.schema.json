@@ -184,13 +184,13 @@
           "markdownDescription": "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against."
         },
         "allowedSources": {
-          "description": "Addresses or CIDR ranges GitHub's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on. Setting it also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back `403` until you edit this. Default: the hook ranges read from `api.github.com/meta` at startup and once a day after.",
+          "description": "Addresses or CIDR ranges GitHub's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on. Setting it without `\"...default\"` also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back `403` until you edit this. Leaving `\"...default\"` in the array keeps the refresh running instead, re-expanding it against the ranges just fetched. Default: the hook ranges read from `api.github.com/meta` at startup and once a day after.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "markdownDescription": "Addresses or CIDR ranges GitHub's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on. Setting it also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back `403` until you edit this. Default: the hook ranges read from `api.github.com/meta` at startup and once a day after."
+          "markdownDescription": "Addresses or CIDR ranges GitHub's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on. Setting it without `\"...default\"` also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back `403` until you edit this. Leaving `\"...default\"` in the array keeps the refresh running instead, re-expanding it against the ranges just fetched. Default: the hook ranges read from `api.github.com/meta` at startup and once a day after."
         },
         "apiUrl": {
           "description": "Override the GitHub API base URL, for GitHub Enterprise Server or a local stub. Any value other than `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. Default: GitHub's own.",
@@ -231,13 +231,13 @@
           "markdownDescription": "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against."
         },
         "allowedSources": {
-          "description": "Addresses or CIDR ranges Slack's events may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: no source check at all, because Slack runs on AWS and publishes no ranges of its own.",
+          "description": "Addresses or CIDR ranges Slack's events may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: no source check at all, because Slack runs on AWS and publishes no ranges of its own.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "markdownDescription": "Addresses or CIDR ranges Slack's events may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: no source check at all, because Slack runs on AWS and publishes no ranges of its own."
+          "markdownDescription": "Addresses or CIDR ranges Slack's events may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: no source check at all, because Slack runs on AWS and publishes no ranges of its own."
         },
         "apiUrl": {
           "description": "Override the Slack API base URL, for Enterprise Grid or a local stub. Default: Slack's own.",
@@ -278,13 +278,13 @@
           "markdownDescription": "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against."
         },
         "allowedSources": {
-          "description": "Addresses or CIDR ranges Linear's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: the addresses Linear publishes, bundled in `src/request-guard.ts` because Linear offers no endpoint to read them from.",
+          "description": "Addresses or CIDR ranges Linear's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: the addresses Linear publishes, bundled in `src/request-guard.ts` because Linear offers no endpoint to read them from.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "markdownDescription": "Addresses or CIDR ranges Linear's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: the addresses Linear publishes, bundled in `src/request-guard.ts` because Linear offers no endpoint to read them from."
+          "markdownDescription": "Addresses or CIDR ranges Linear's webhooks may arrive from. Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on. Default: the addresses Linear publishes, bundled in `src/request-guard.ts` because Linear offers no endpoint to read them from."
         },
         "apiUrl": {
           "description": "Override the Linear GraphQL endpoint, for a local stub. Default: Linear's own.",
