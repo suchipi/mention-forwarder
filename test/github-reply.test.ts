@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const SECRET = "reply-routing-secret";
+const PREFIX = "> posted by a bot\n\n";
 
 type Call = { method: string; path: string; body: unknown };
 
@@ -95,7 +96,7 @@ process.stdin.on("end", () => {
       command: ["node", responder],
       port,
       logLevel: "info",
-      github: { triggerPhrases: ["@my-bot"], apiUrl: stub.url },
+      github: { triggerPhrases: ["@my-bot"], apiUrl: stub.url, replyPrefix: PREFIX },
     }),
   );
   writeFileSync(join(workspace, ".env"), `GITHUB_WEBHOOK_SECRET=${SECRET}\nGITHUB_TOKEN=ghp-stub-token\n`);
@@ -165,7 +166,7 @@ test("a review comment mention is answered inside its review thread", async () =
     "/repos/acme/widgets/pulls/42/comments/555/replies",
     "the reply must go to the review comment's own thread, not the PR conversation",
   );
-  assert.deepEqual(call.body, { body: "on it: explain this line" });
+  assert.deepEqual(call.body, { body: `${PREFIX}on it: explain this line` });
 });
 
 test("an issue comment mention is answered on the issue", async () => {
@@ -187,7 +188,7 @@ test("an issue comment mention is answered on the issue", async () => {
   const [call] = replyCalls();
   assert.ok(call);
   assert.equal(call.path, "/repos/acme/widgets/issues/7/comments");
-  assert.deepEqual(call.body, { body: "on it: take a look" });
+  assert.deepEqual(call.body, { body: `${PREFIX}on it: take a look` });
 });
 
 test("a commit comment mention is answered on the commit", async () => {
@@ -230,5 +231,5 @@ test("a command that writes nothing posts no reply", async () => {
   // The reaction still fires, which proves the mention was handled at all.
   await waitFor(() => apiCalls.some((call) => call.path === "/graphql"), "the acknowledgement reaction");
   await new Promise((resolve) => setTimeout(resolve, 500));
-  assert.deepEqual(replyCalls(), [], "an empty reply file means no comment is posted");
+  assert.deepEqual(replyCalls(), [], "an empty reply file means no comment is posted, replyPrefix or not");
 });

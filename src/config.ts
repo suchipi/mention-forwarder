@@ -17,6 +17,12 @@ const platformOverrides = z.strictObject({
     ),
   /** Addresses or CIDR ranges this platform's webhooks may arrive from. Replaces the built-in list. */
   allowedSources: z.array(z.string().min(1)).optional(),
+  replyPrefix: z
+    .string()
+    .optional()
+    .describe(
+      "Text put in front of every reply posted on this platform: a disclaimer, an attribution, whatever has to lead each one. Set it per platform, since what a reply needs in front of it differs by where it lands. It is joined to the reply exactly as written, with nothing added in between, so a prefix meant to stand as its own paragraph has to end in a blank line of its own: `\"> Written by an AI agent.\\n\\n\"`. It goes in front of each post rather than each mention, so under `per-conversation` every streamed batch carries one, and it is defused along with the rest of the reply, so an `@name` in it notifies nobody. Silence still wins over it: a command that writes nothing to its reply file posts nothing at all, prefix or no prefix. Default: none, so a reply goes out exactly as the command wrote it.",
+    ),
 });
 
 const PHRASE_INTRO = "Phrases that count as a mention, such as `[\"@my-bot\"]`.";
@@ -200,12 +206,6 @@ export const fileSchema = z
       .describe(
         "Directory to keep reply files in. Set it if you want to read them yourself. Default: a fresh temp directory, printed at startup.",
       ),
-    replyPrefix: z
-      .string()
-      .default("")
-      .describe(
-        "Text put in front of every reply the forwarder posts, on all three platforms. It is joined to the reply exactly as written, with nothing added in between, so a prefix meant to stand as its own paragraph has to end in a blank line of its own: `\"> Written by an AI agent.\\n\\n\"`. It goes in front of each post rather than each mention, so under `per-conversation` every streamed batch carries one, and it is defused along with the rest of the reply, so an `@name` in it notifies nobody. Silence still wins over it: a command that writes nothing to its reply file posts nothing at all, prefix or no prefix. Default: `\"\"`, no prefix.",
-      ),
     includeRawPayload: z
       .boolean()
       .default(false)
@@ -284,6 +284,8 @@ type CommonSettings = {
   allowedAuthors: string[];
   /** Undefined leaves the platform's built-in source list in place. */
   allowedSources: string[] | undefined;
+  /** Prepended to every reply this platform posts. Empty means the reply goes out as written. */
+  replyPrefix: string;
   apiUrl: string | undefined;
 };
 
@@ -314,7 +316,6 @@ export type Config = {
   sessionIdleMs: number;
   replyDebounceMs: number;
   replyDir: string | undefined;
-  replyPrefix: string;
   includeRawPayload: boolean;
   logPayloads: boolean;
   logLevel: Level;
@@ -426,6 +427,7 @@ export function loadConfig(path: string): Config {
       triggerPhrases: file.slack?.triggerPhrases ?? [],
       allowedAuthors: file.slack?.allowedAuthors ?? [],
       allowedSources: file.slack?.allowedSources,
+      replyPrefix: file.slack?.replyPrefix ?? "",
       signingSecret: slackSigningSecret,
       botToken,
       apiUrl: file.slack?.apiUrl,
@@ -444,7 +446,6 @@ export function loadConfig(path: string): Config {
     sessionIdleMs: file.sessionIdleMs,
     replyDebounceMs: file.replyDebounceMs,
     replyDir: file.replyDir === undefined ? undefined : resolvePath(file.replyDir),
-    replyPrefix: file.replyPrefix,
     includeRawPayload: file.includeRawPayload,
     logPayloads: file.logPayloads,
     logLevel: file.logLevel,
@@ -460,6 +461,7 @@ export function loadConfig(path: string): Config {
             triggerPhrases: requireTriggerPhrases("github", file.github?.triggerPhrases),
             allowedAuthors: file.github?.allowedAuthors ?? [],
             allowedSources: file.github?.allowedSources,
+            replyPrefix: file.github?.replyPrefix ?? "",
             webhookSecret: githubSecret,
             auth: readGitHubAuth(),
             apiUrl: file.github?.apiUrl,
@@ -473,6 +475,7 @@ export function loadConfig(path: string): Config {
             triggerPhrases: requireTriggerPhrases("linear", file.linear?.triggerPhrases),
             allowedAuthors: file.linear?.allowedAuthors ?? [],
             allowedSources: file.linear?.allowedSources,
+            replyPrefix: file.linear?.replyPrefix ?? "",
             webhookSecret: linearSecret,
             apiKey: env("LINEAR_API_KEY"),
             apiUrl: file.linear?.apiUrl,

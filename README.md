@@ -172,13 +172,16 @@ Nothing else about the text changes, and a reply that mentions nobody goes out b
 
 ### Putting a prefix on every reply
 
-`replyPrefix` puts a fixed piece of text in front of every reply, on every platform — a disclaimer, an attribution, a link back to wherever the bot runs:
+`<platform>.replyPrefix` puts a fixed piece of text in front of every reply posted on that platform — a disclaimer, an attribution, a link back to wherever the bot runs. It is set per platform, because what a reply needs in front of it depends on where it lands: a GitHub or Linear comment goes out looking much like anyone else's, while a Slack message already carries an app badge that says what posted it.
 
 ```json
 {
-  "replyPrefix": "> The following message was written by an AI agent, not by Lily Skye.\n\n"
+  "github": { "replyPrefix": "> The following message was written by an AI agent, not by Lily Skye.\n\n" },
+  "linear": { "replyPrefix": "> The following message was written by an AI agent, not by Lily Skye.\n\n" }
 }
 ```
+
+Leave it out of a platform's block, as `slack` is left out above, and replies there go out exactly as your command wrote them.
 
 The prefix is joined to the reply exactly as written, with nothing added in between, so it has to end with the blank line you want: `\n\n` in JSON. Leave that off and the reply starts on the same line — and a prefix written as a Markdown blockquote, like the one above, pulls the reply's first paragraph into the quote with it.
 
@@ -212,7 +215,6 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `sessionIdleMs` | `0` | Used only when `lifecycle` is set to `per-conversation`: close a session after this long with no new mentions. `0` keeps it alive indefinitely. |
 | `replyDebounceMs` | `1500` | Used only when `lifecycle` is set to `per-conversation`: how long writes to a reply file must settle before it is posted. |
 | `replyDir` | a fresh temp directory | Where reply files live. Set it if you want to inspect them. |
-| `replyPrefix` | `""` | Text put in front of every reply, on every platform. Joined exactly as written, so end it with `\n\n` if it should stand as its own paragraph. See [Putting a prefix on every reply](#putting-a-prefix-on-every-reply). |
 | `timeoutMs` | `0` | Kill the command after this many milliseconds. `0` means never — the right choice for a long-running agent. In `per-conversation` mode this caps a session's total lifetime. |
 | `includeRawPayload` | `false` | Add the platform's untouched webhook payload as `raw` in the stdin JSON. There is no `{{raw}}` placeholder, but `{{json}}` and `MENTION_JSON` grow to include it, so read it from stdin. |
 | `logPayloads` | `false` | Log every incoming delivery as pretty-printed JSON — including ones that matched no trigger phrase, and event types the forwarder doesn't act on. Independent of `logLevel`, so turning it on is enough on its own. |
@@ -229,6 +231,7 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `slack.path` | `/slack/events` | Route Slack posts to. |
 | `<platform>.allowedAuthors` | `[]` | Only these authors may trigger the command on that platform. Empty means anyone may. Matched case-insensitively; [What `allowedAuthors` matches](#what-allowedauthors-matches) says exactly which name each platform hands over. |
 | `<platform>.allowedSources` | its published ranges | Addresses or CIDR ranges that platform's webhooks may arrive from. Replaces the built-in list; an empty list means no source check at all, and loopback always passes either way. The entry `"...default"` expands to the built-in list where you put it, so `["...default", "10.0.0.1"]` adds one address without giving up the rest. Setting the GitHub one also pins it, stopping the daily refresh, unless `"...default"` is in the list. See [Who can reach it](#who-can-reach-it). |
+| `<platform>.replyPrefix` | *none* | Text put in front of every reply posted on that platform. Joined exactly as written, so end it with `\n\n` if it should stand as its own paragraph. See [Putting a prefix on every reply](#putting-a-prefix-on-every-reply). |
 | `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
 | `linear.apiUrl` | Linear's own | Override the Linear GraphQL endpoint. For a local stub. |

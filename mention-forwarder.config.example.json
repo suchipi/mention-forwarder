@@ -11,7 +11,6 @@
   "sessionIdleMs": 0,
   "replyDebounceMs": 1500,
   "replyDir": ".replies",
-  "replyPrefix": "",
   "includeRawPayload": false,
   "logPayloads": false,
   "logLevel": "info",
@@ -31,6 +30,7 @@
       "2a0a:a440::/29",
       "2606:50c0::/32"
     ],
+    "replyPrefix": "",
     "apiUrl": "https://api.github.com"
   },
   "slack": {
@@ -38,6 +38,7 @@
     "triggerPhrases": [],
     "allowedAuthors": [],
     "allowedSources": [],
+    "replyPrefix": "",
     "apiUrl": "https://slack.com/api/"
   },
   "linear": {
@@ -55,6 +56,7 @@
       "35.222.25.142",
       "34.60.255.158"
     ],
+    "replyPrefix": "",
     "apiUrl": "https://api.linear.app/graphql"
   }
 }

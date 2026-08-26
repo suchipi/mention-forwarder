@@ -201,7 +201,7 @@ export function createGitHubMiddleware(
     }
     const { owner, repo } = place;
     const plan = place.reply;
-    const body = neutralizeMarkdownMentions(written);
+    const body = neutralizeMarkdownMentions(settings.replyPrefix + written);
     switch (plan.via) {
       case "issueComment":
         await api.rest.issues.createComment({ owner, repo, issue_number: plan.issueNumber, body });

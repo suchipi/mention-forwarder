@@ -31,7 +31,7 @@ function safeName(mentionId: string): string {
   return mentionId.replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 120);
 }
 
-export function createReplyMailbox(dir: string, debounceMs: number, log: Logger, prefix = ""): ReplyMailbox {
+export function createReplyMailbox(dir: string, debounceMs: number, log: Logger): ReplyMailbox {
   const entries = new Map<string, Entry>();
   // Kept outside the entries so that tracking a file again after it was finished
   // resumes where it left off instead of re-posting everything already sent.
@@ -90,11 +90,9 @@ export function createReplyMailbox(dir: string, debounceMs: number, log: Logger,
           return;
         }
         if (body === "") continue;
-        // Prefixed after the empty check, so a command that writes nothing still says nothing.
-        const message = prefix + body;
         try {
-          await entry.postReply(message);
-          log.info("posted reply", { replyFile: basename(entry.path), bytes: message.length });
+          await entry.postReply(body);
+          log.info("posted reply", { replyFile: basename(entry.path), bytes: body.length });
         } catch (error) {
           log.error("could not post reply", { replyFile: basename(entry.path), error: (error as Error).message });
         }

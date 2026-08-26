@@ -200,7 +200,7 @@ export function mountSlack(
   async function postReply(incoming: Incoming, body: string): Promise<void> {
     await app.client.chat.postMessage({
       channel: incoming.channel,
-      text: neutralizeSlackMentions(body),
+      text: neutralizeSlackMentions(settings.replyPrefix + body),
       // Off by default, but named here because turning it on would revive the
       // plain-text `@here` that neutralizeSlackMentions leaves behind.
       link_names: false,

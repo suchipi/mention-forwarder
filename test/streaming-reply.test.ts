@@ -93,9 +93,8 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
       port,
       lifecycle: "per-conversation",
       replyDebounceMs: 100,
-      replyPrefix: PREFIX,
       logLevel: "info",
-      github: { triggerPhrases: ["@my-bot"], apiUrl: stub.url },
+      github: { triggerPhrases: ["@my-bot"], apiUrl: stub.url, replyPrefix: PREFIX },
     }),
   );
   writeFileSync(join(workspace, ".env"), `GITHUB_WEBHOOK_SECRET=${SECRET}\nGITHUB_TOKEN=ghp-stub-token\n`);

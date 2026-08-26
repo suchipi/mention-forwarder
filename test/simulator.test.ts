@@ -11,6 +11,7 @@ const FORWARDER = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const SIMULATOR = fileURLToPath(new URL("../simulator/cli.ts", import.meta.url));
 
 type Platform = "github" | "slack" | "linear";
+const PREFIX = "> posted by a bot\n\n";
 const PLATFORMS: Platform[] = ["github", "slack", "linear"];
 
 type Mention = { platform: string; kind: string; prompt: string; author: string; title: string; conversationKey: string };
@@ -148,9 +149,13 @@ process.stdin.on("end", () => {
       port: forwarderPort,
       logLevel: "info",
       replyDir: join(workspace, "replies"),
-      github: { triggerPhrases: ["@sim-bot"], apiUrl: `http://127.0.0.1:${ports.github}/api/github` },
+      github: { triggerPhrases: ["@sim-bot"], apiUrl: `http://127.0.0.1:${ports.github}/api/github`, replyPrefix: PREFIX },
       slack: { apiUrl: `http://127.0.0.1:${ports.slack}/api/slack/` },
-      linear: { triggerPhrases: ["@sim-bot"], apiUrl: `http://127.0.0.1:${ports.linear}/api/linear/graphql` },
+      linear: {
+        triggerPhrases: ["@sim-bot"],
+        apiUrl: `http://127.0.0.1:${ports.linear}/api/linear/graphql`,
+        replyPrefix: PREFIX,
+      },
     }),
   );
 
@@ -267,6 +272,7 @@ test("github: the reaction and the reply come back into the thread", async () =>
   assert.ok(reply);
   assert.equal(reply.direction, "received");
   assert.equal(reply.kind, "issues.createComment #7", "an issue mention is answered on the issue");
+  assert.ok(reply.text.startsWith(PREFIX), `github sets a replyPrefix, so its reply must lead with it: ${reply.text}`);
 });
 
 // Octokit spaces notification-triggering writes three seconds apart for github.com's rate limits,
@@ -344,6 +350,7 @@ test("slack: the reaction and the reply come back into the thread", async () => 
   const reply = messages.find((message) => message.text.includes(`answering: ${prompt}`));
   assert.ok(reply);
   assert.equal(reply.kind, "chat.postMessage", "a mention in a thread is answered in that same thread");
+  assert.ok(reply.text.startsWith("answering: "), `slack sets no replyPrefix, so its reply goes out as written: ${reply.text}`);
 });
 
 test("slack: bots and channel messages without a mention are ignored", async () => {
@@ -388,6 +395,7 @@ test("linear: the reaction and the reply come back into the thread", async () =>
   const reply = messages.find((message) => message.text.includes(`answering: ${prompt}`));
   assert.ok(reply);
   assert.equal(reply.direction, "received");
+  assert.ok(reply.text.startsWith(PREFIX), `linear sets a replyPrefix, so its reply must lead with it: ${reply.text}`);
 });
 
 test("linear: a threaded reply with nothing above it is sent as a top-level comment", async () => {

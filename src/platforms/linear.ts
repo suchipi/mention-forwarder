@@ -36,7 +36,7 @@ export function createLinearMiddleware(
       log.warn("cannot post reply: LINEAR_API_KEY is not set");
       return;
     }
-    await linear.createComment({ ...target, body: neutralizeMarkdownMentions(body) });
+    await linear.createComment({ ...target, body: neutralizeMarkdownMentions(settings.replyPrefix + body) });
   }
 
   async function react(target: { commentId: string }): Promise<void> {
