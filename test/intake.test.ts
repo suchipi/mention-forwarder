@@ -26,6 +26,7 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     sessionIdleMs: 0,
     replyDebounceMs: 1500,
     replyDir: undefined,
+    replyPrefix: "",
     includeRawPayload: false,
     logPayloads: false,
     logLevel: "error",

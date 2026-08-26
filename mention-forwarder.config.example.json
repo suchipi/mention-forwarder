@@ -11,6 +11,7 @@
   "sessionIdleMs": 0,
   "replyDebounceMs": 1500,
   "replyDir": ".replies",
+  "replyPrefix": "",
   "includeRawPayload": false,
   "logPayloads": false,
   "logLevel": "info",

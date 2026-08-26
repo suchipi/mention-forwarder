@@ -13,9 +13,9 @@ after(() => {
   for (const mailbox of opened) mailbox.close();
 });
 
-function setup(debounceMs = 40) {
+function setup(debounceMs = 40, prefix = "") {
   const dir = mkdtempSync(join(tmpdir(), "mf-reply-"));
-  const mailbox = createReplyMailbox(dir, debounceMs, silent);
+  const mailbox = createReplyMailbox(dir, debounceMs, silent, prefix);
   opened.push(mailbox);
   const posted: string[] = [];
   const poster = async (body: string) => {
@@ -93,6 +93,30 @@ test("each reply carries only what was appended since the last one", async () =>
   appendFileSync(file, "second update\n");
   await mailbox.finish(file);
   assert.deepEqual(posted, ["first update", "second update"], "the first reply is not repeated");
+});
+
+test("a prefix goes in front of every post, not just the first", async () => {
+  const prefix = "> written by a bot\n\n";
+  const { mailbox, posted, poster } = setup(40, prefix);
+  const file = mailbox.pathFor("prefixed");
+
+  mailbox.track(file, poster);
+  appendFileSync(file, "first update\n");
+  await mailbox.finish(file);
+
+  mailbox.track(file, poster);
+  appendFileSync(file, "second update\n");
+  await mailbox.finish(file);
+
+  assert.deepEqual(posted, [`${prefix}first update`, `${prefix}second update`]);
+});
+
+test("a prefix does not turn an empty reply into a post", async () => {
+  const { mailbox, posted, poster } = setup(40, "> written by a bot\n\n");
+  writeFileSync(mailbox.pathFor("blank"), "  \n");
+  await mailbox.postOnce(mailbox.pathFor("blank"), poster);
+  await mailbox.postOnce(mailbox.pathFor("missing"), poster);
+  assert.deepEqual(posted, [], "silence stays silence, whatever the prefix says");
 });
 
 test("a command that rewrites the file instead of appending still gets its reply", async () => {

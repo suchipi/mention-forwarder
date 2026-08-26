@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const SECRET = "streaming-secret";
+const PREFIX = "> posted by a bot\n\n";
 
 let port: number;
 const replies: string[] = [];
@@ -92,6 +93,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
       port,
       lifecycle: "per-conversation",
       replyDebounceMs: 100,
+      replyPrefix: PREFIX,
       logLevel: "info",
       github: { triggerPhrases: ["@my-bot"], apiUrl: stub.url },
     }),
@@ -147,7 +149,7 @@ test("a long-lived command's reply file is watched, posting each update separate
   await waitFor(() => replies.length >= 2, `two replies (got ${replies.length}: ${JSON.stringify(replies)})`);
   assert.deepEqual(
     replies.slice(0, 2),
-    ["starting on the audit", "finished the audit"],
-    "each reply carries only the newly written text, not the whole file",
+    [`${PREFIX}starting on the audit`, `${PREFIX}finished the audit`],
+    "each reply carries only the newly written text, behind its own copy of replyPrefix",
   );
 });

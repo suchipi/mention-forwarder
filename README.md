@@ -170,6 +170,20 @@ A reply goes out under the bot's identity, so a mention inside one would notify 
 
 Nothing else about the text changes, and a reply that mentions nobody goes out byte for byte.
 
+### Putting a prefix on every reply
+
+`replyPrefix` puts a fixed piece of text in front of every reply, on every platform — a disclaimer, an attribution, a link back to wherever the bot runs:
+
+```json
+{
+  "replyPrefix": "> The following message was written by an AI agent, not by Lily Skye.\n\n"
+}
+```
+
+The prefix is joined to the reply exactly as written, with nothing added in between, so it has to end with the blank line you want: `\n\n` in JSON. Leave that off and the reply starts on the same line — and a prefix written as a Markdown blockquote, like the one above, pulls the reply's first paragraph into the quote with it.
+
+It goes in front of each *post* rather than each mention, so under `per-conversation` every debounced batch carries its own copy. It is defused on the way out like the rest of the reply, so an `@name` inside it notifies nobody. And it never breaks silence: a command that writes nothing to its reply file still posts nothing at all.
+
 ## Config reference
 
 Everything lives in `mention-forwarder.config.json`. Only `command` is required.
@@ -198,6 +212,7 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `sessionIdleMs` | `0` | Used only when `lifecycle` is set to `per-conversation`: close a session after this long with no new mentions. `0` keeps it alive indefinitely. |
 | `replyDebounceMs` | `1500` | Used only when `lifecycle` is set to `per-conversation`: how long writes to a reply file must settle before it is posted. |
 | `replyDir` | a fresh temp directory | Where reply files live. Set it if you want to inspect them. |
+| `replyPrefix` | `""` | Text put in front of every reply, on every platform. Joined exactly as written, so end it with `\n\n` if it should stand as its own paragraph. See [Putting a prefix on every reply](#putting-a-prefix-on-every-reply). |
 | `timeoutMs` | `0` | Kill the command after this many milliseconds. `0` means never — the right choice for a long-running agent. In `per-conversation` mode this caps a session's total lifetime. |
 | `includeRawPayload` | `false` | Add the platform's untouched webhook payload as `raw` in the stdin JSON. There is no `{{raw}}` placeholder, but `{{json}}` and `MENTION_JSON` grow to include it, so read it from stdin. |
 | `logPayloads` | `false` | Log every incoming delivery as pretty-printed JSON — including ones that matched no trigger phrase, and event types the forwarder doesn't act on. Independent of `logLevel`, so turning it on is enough on its own. |

@@ -66,7 +66,7 @@ function main(): void {
 
   const replyDir = config.replyDir ?? mkdtempSync(join(tmpdir(), "mention-forwarder-"));
   if (config.replyDir !== undefined) mkdirSync(replyDir, { recursive: true });
-  const mailbox = createReplyMailbox(replyDir, config.replyDebounceMs, log.scoped("reply"));
+  const mailbox = createReplyMailbox(replyDir, config.replyDebounceMs, log.scoped("reply"), config.replyPrefix);
 
   const runner = createRunner(config, mailbox, log.scoped("command"));
   const queue = createKeyedQueue(config.maxConcurrentConversations, (error) => {
