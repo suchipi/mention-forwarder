@@ -363,7 +363,7 @@ function renderMrkdwn(text, names) {
 }
 
 /**
- * Renders one message body as HTML, in the notation the platform it came from actually uses.
+ * Renders one message body as HTML, in the notation the message itself is written in.
  *
  * GitHub and Linear get a CommonMark subset: headings, lists, blockquotes, fenced code, tables,
  * images, links, and emphasis. Slack gets mrkdwn instead, where a single asterisk is bold, an
@@ -371,14 +371,17 @@ function renderMrkdwn(text, names) {
  * mentions arrive wrapped in angle brackets. Rendering either one as the other would hide the
  * differences the simulator exists to show.
  *
+ * `markdown` is the one Slack message that is not mrkdwn: a reply the forwarder posted through
+ * `markdown_text`, which Slack renders as Markdown rather than as the notation around it.
+ *
  * Every part of the text is escaped, and only `http`, `https`, and `mailto` URLs become links.
  *
  * @see https://docs.slack.dev/messaging/formatting-message-text for the mrkdwn notation.
  * @param {string} text The body exactly as the platform carries it.
- * @param {string} platform `github`, `slack`, or `linear`.
+ * @param {string} notation `github`, `slack`, `linear`, or `markdown`.
  * @param {Record<string, string>} [mentionNames] How the ids in `<@U…>` and `<#C…>` read once rendered.
  * @returns {string} HTML for the inside of one element.
  */
-export function renderMessage(text, platform, mentionNames = {}) {
-  return platform === "slack" ? renderMrkdwn(text, mentionNames) : renderBlocks(text.split("\n")).join("");
+export function renderMessage(text, notation, mentionNames = {}) {
+  return notation === "slack" ? renderMrkdwn(text, mentionNames) : renderBlocks(text.split("\n")).join("");
 }

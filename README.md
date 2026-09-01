@@ -161,11 +161,19 @@ When the reply is read depends on the lifecycle:
 
 Replying needs write credentials, the same ones the acknowledgement reaction uses: a GitHub App or token, a Slack bot token with `chat:write`, and `LINEAR_API_KEY`. A reply that fails is logged and never stops the command.
 
+### Replies are Markdown, Slack included
+
+Whatever your command writes is Markdown. GitHub and Linear read it as such. Slack does not: the `text` of a Slack message is [mrkdwn](https://docs.slack.dev/messaging/formatting-message-text), a different notation in which `**bold**` stays literal, `[label](url)` stays literal, and headings and tables do not exist — so a reply written as Markdown used to arrive in the thread as its own source.
+
+Slack replies go out through [`markdown_text`](https://docs.slack.dev/reference/block-kit/blocks/markdown-block) instead, which is Slack's own Markdown renderer. Headings, ordered and unordered lists, task lists, tables, block quotes, dividers, fenced code with a language, emphasis and `[label](url)` links all arrive rendered; an image arrives as a link to itself, which is as close as Slack gets.
+
+`markdown_text` holds 12,000 characters. A reply longer than that is posted as plain `text` instead and arrives unrendered, which beats not arriving at all, and the forwarder logs a warning saying which one it did.
+
 ### Replies never mention anyone
 
 A reply goes out under the bot's identity, so a mention inside one would notify a real person, and the text often quotes whoever wrote the comment. Mentions are therefore defused on the way out, whatever your command wrote:
 
-- **Slack.** `<!channel>`, `<!here>`, `<!everyone>`, `<@U…>`, `<#C…>` and `<!subteam^…>` lose their brackets and go out as `@channel`, `@name`, `#name`. Only the bracketed forms ever notified anyone, so emphasis, code, quotes and `<url|label>` links are untouched.
+- **Slack.** `<!channel>`, `<!here>`, `<!everyone>`, `<@U…>`, `<#C…>` and `<!subteam^…>` lose their brackets and go out as `@channel`, `@name`, `#name`. Only the bracketed forms ever notified anyone, so the Markdown around them is untouched.
 - **GitHub and Linear.** `@name` and `@org/team` keep their spelling but gain a zero-width space after the `@`, which is the only thing either platform respects: a backslash does not escape `@` in a GitHub comment. Code spans, fenced blocks, links and bare URLs are left exactly as written, since a mention was never live inside them anyway.
 
 Nothing else about the text changes, and a reply that mentions nobody goes out byte for byte.

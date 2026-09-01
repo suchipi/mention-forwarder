@@ -10,6 +10,11 @@ function slack(text: string, mentionNames?: Record<string, string>): string {
   return renderMessage(text, "slack", mentionNames);
 }
 
+/** A Slack reply the forwarder posted through `markdown_text`, which Slack reads as Markdown. */
+function slackMarkdown(text: string): string {
+  return renderMessage(text, "markdown");
+}
+
 test("commonmark emphasis, code, and line breaks", () => {
   assert.equal(
     github("**bold** and *em* and `code`"),
@@ -95,4 +100,9 @@ test("mrkdwn links and mentions arrive in angle brackets", () => {
 test("mrkdwn keeps the entities slack escapes on the way in", () => {
   assert.equal(slack("a &amp; b"), "a &amp; b");
   assert.equal(slack("&lt;@U0SIMBOT&gt;"), "&lt;@U0SIMBOT&gt;");
+});
+
+test("a Slack reply posted as markdown_text is read as Markdown, not as mrkdwn", () => {
+  assert.equal(slackMarkdown("**bold** and [docs](https://example.com)"), '<p><strong>bold</strong> and <a href="https://example.com" target="_blank" rel="noreferrer">docs</a></p>');
+  assert.equal(slack("**bold**"), "**bold**", "the same text sent as mrkdwn stays literal, which is the bug this replaced");
 });

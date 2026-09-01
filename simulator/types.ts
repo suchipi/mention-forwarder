@@ -29,6 +29,8 @@ export type Message = {
   /** Event name for a webhook, API method for a reply. */
   kind: string;
   text: string;
+  /** Set on a Slack reply that arrived as `markdown_text`, which Slack reads as Markdown rather than mrkdwn. */
+  markdown?: boolean;
   at: string;
   /** Platform ids this message answers to, used to route replies and reactions back onto it. */
   refs: string[];

@@ -200,16 +200,20 @@ function createApi(store: Store, botName: string, log: Logger): Router {
           return;
         }
         const ts = nextTs();
+        // Either argument carries the message; which one decides how Slack reads it.
+        const markdown = field(request.body, "markdown_text");
+        const text = markdown ?? field(request.body, "text") ?? "";
         store.add({
           threadId,
           direction: "received",
           author: botName,
           isBot: true,
           kind: "chat.postMessage",
-          text: field(request.body, "text") ?? "",
+          text,
+          markdown: markdown !== undefined,
           refs: [ts],
         });
-        response.json({ ok: true, channel, ts, message: { text: field(request.body, "text") ?? "", ts } });
+        response.json({ ok: true, channel, ts, message: { text, ts } });
         return;
       }
 

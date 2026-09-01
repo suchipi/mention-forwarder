@@ -539,7 +539,7 @@ ${escapeHtml(JSON.stringify(message.request.body, null, 2))}</pre>
                 <span class="chip">${escapeHtml(message.kind)}</span>
                 <span class="at">${escapeHtml(timeOf(message.at))}</span>
               </div>
-              <div class="body">${renderMessage(message.text, state.platform, state.mentionNames)}</div>
+              <div class="body">${renderMessage(message.text, message.markdown ? "markdown" : state.platform, state.mentionNames)}</div>
               ${reactions ? `<div class="reactions">${reactions}</div>` : ""}
               ${delivery}
               ${payload}

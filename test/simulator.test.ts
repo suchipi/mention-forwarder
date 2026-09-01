@@ -23,6 +23,7 @@ type Message = {
   isBot: boolean;
   kind: string;
   text: string;
+  markdown?: boolean;
   reactions: string[];
   delivery: { ok: boolean; status: number | null; detail: string } | null;
   request: { body: unknown } | null;
@@ -350,6 +351,7 @@ test("slack: the reaction and the reply come back into the thread", async () => 
   const reply = messages.find((message) => message.text.includes(`answering: ${prompt}`));
   assert.ok(reply);
   assert.equal(reply.kind, "chat.postMessage", "a mention in a thread is answered in that same thread");
+  assert.equal(reply.markdown, true, "the forwarder posts a Slack reply through markdown_text");
   assert.ok(reply.text.startsWith("answering: "), `slack sets no replyPrefix, so its reply goes out as written: ${reply.text}`);
 });
 

@@ -17,9 +17,9 @@ const SLACK_CHANNEL = new RegExp(`<#(${SLACK_ID})(?:\\|([^<>]*))?>`, "g");
  * Strips the angle brackets that make Slack treat a name as a mention, leaving
  * the label behind as plain text.
  *
- * Only the bracketed forms notify anyone, so nothing else has to change: mrkdwn
- * emphasis, code spans, block quotes and `<url|label>` links all survive intact,
- * as does `<!date^…>`, which is a formatter rather than a mention.
+ * Only the bracketed forms notify anyone, so nothing else has to change: the
+ * Markdown a reply is posted as survives intact, as does `<!date^…>`, which is a
+ * formatter rather than a mention.
  *
  * @param body Reply text as the command wrote it.
  * @returns The same text with `<!channel>`, `<@U…>`, `<#C…>` and `<!subteam^…>`

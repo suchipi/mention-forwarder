@@ -16,6 +16,15 @@ const BOLT_LOG_LEVEL: Record<Level, LogLevel> = {
 
 const ANY_USER_MENTION = /<@[A-Z0-9]+(?:\|[^>]*)?>/g;
 
+/**
+ * What `markdown_text` holds, cumulative across the markdown blocks Slack turns
+ * it into. Past it the call is refused outright, so a reply that long goes as
+ * plain `text` instead: unrendered in the thread beats absent from it.
+ *
+ * @see https://docs.slack.dev/reference/block-kit/blocks/markdown-block
+ */
+const MARKDOWN_LIMIT = 12000;
+
 /** Slack names a subscription differently from the channel type it carries, and the name is what you enable. */
 const MESSAGE_KIND: Record<string, string> = {
   channel: "message.channels",
@@ -198,9 +207,20 @@ export function mountSlack(
   }
 
   async function postReply(incoming: Incoming, body: string): Promise<void> {
+    const reply = neutralizeSlackMentions(settings.replyPrefix + body);
+    const rendered = reply.length <= MARKDOWN_LIMIT;
+    if (!rendered) {
+      log.warn("reply is past Slack's markdown limit, posting it unrendered", {
+        characters: reply.length,
+        limit: MARKDOWN_LIMIT,
+      });
+    }
+
     await app.client.chat.postMessage({
       channel: incoming.channel,
-      text: neutralizeSlackMentions(settings.replyPrefix + body),
+      // `markdown_text` and `text` are alternatives: sending both is what the
+      // API forbids, not what it merges.
+      ...(rendered ? { markdown_text: reply } : { text: reply }),
       // Off by default, but named here because turning it on would revive the
       // plain-text `@here` that neutralizeSlackMentions leaves behind.
       link_names: false,
