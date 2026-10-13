@@ -157,7 +157,9 @@ When the reply is read depends on the lifecycle:
 | GitHub discussion comment | A discussion comment, threaded under the comment that mentioned you, or under that comment's parent when the mention is itself a reply: GitHub threads discussions only one level deep |
 | Slack channel mention | A threaded reply under the message |
 | Slack DM | The next message in that DM |
-| Linear comment | A threaded reply under the top-level comment |
+| Linear comment | A threaded reply under the comment the conversation started in |
+
+On Linear a conversation covers the whole issue, so a follow-up mention can arrive as another top-level comment, or in some other thread on the ticket. Wherever it arrives, its answer goes under the comment the conversation started in, which keeps one exchange in one thread instead of spreading it down the ticket. That comment is held in memory, so a restarted forwarder starts the next mention's thread afresh.
 
 Replying needs write credentials, the same ones the acknowledgement reaction uses: a GitHub App or token, a Slack bot token with `chat:write`, and `LINEAR_API_KEY`. A reply that fails is logged and never stops the command.
 

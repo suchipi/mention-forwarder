@@ -10,6 +10,9 @@ import { createTriggerMatcher } from "../trigger.ts";
 
 type Actor = EntityWebhookPayloadWithCommentData["actor"];
 
+/** Beyond this many remembered conversations the oldest are forgotten. */
+const CONVERSATION_CAPACITY = 2048;
+
 function actorName(actor: Actor): string {
   if (actor === null || actor === undefined) return "";
   return "name" in actor ? actor.name : actor.service;
@@ -30,6 +33,18 @@ export function createLinearMiddleware(
       ? undefined
       : new LinearClient({ apiKey: settings.apiKey, ...(settings.apiUrl === undefined ? {} : { apiUrl: settings.apiUrl }) });
   const emoji = reactionEmoji.replace(/^:|:$/g, "");
+
+  // A conversation covers a whole issue, so a later mention can arrive in a different thread on it.
+  const startedUnder = new Map<string, string>();
+
+  function rememberStart(conversationKey: string, commentId: string): void {
+    if (startedUnder.has(conversationKey)) return;
+    startedUnder.set(conversationKey, commentId);
+    if (startedUnder.size > CONVERSATION_CAPACITY) {
+      const oldest = startedUnder.keys().next();
+      if (!oldest.done) startedUnder.delete(oldest.value);
+    }
+  }
 
   async function postReply(target: { issueId: string; parentId?: string }, body: string): Promise<void> {
     if (linear === undefined) {
@@ -61,6 +76,11 @@ export function createLinearMiddleware(
     if (!trigger.test(comment.body)) return;
 
     const issueId = comment.issueId ?? comment.issue?.id;
+    const conversationKey = `linear:${issueId ?? comment.id}`;
+    // Linear threads are one level deep, so a reply to a reply must hang off
+    // the same top-level comment rather than nesting further.
+    const threadRoot = comment.parentId ?? comment.id;
+
     const accepted = intake(
       {
         id: `linear:Comment:${comment.id}:${comment.updatedAt}`,
@@ -71,19 +91,19 @@ export function createLinearMiddleware(
         prompt: trigger.strip(comment.body),
         author: actorName(payload.actor),
         title: comment.issue?.title ?? "",
-        conversationKey: `linear:${issueId ?? comment.id}`,
+        conversationKey,
         raw: payload,
-        // Linear threads are one level deep, so a reply to a reply must hang off
-        // the same top-level comment rather than nesting further.
         postReply: (body) =>
           issueId === undefined
             ? Promise.reject(new Error("comment has no issue to reply on"))
-            : postReply({ issueId, parentId: comment.parentId ?? comment.id }, body),
+            : postReply({ issueId, parentId: startedUnder.get(conversationKey) ?? threadRoot }, body),
       },
       { isBot: payload.actor?.type !== "user" },
     );
 
-    if (accepted) void react({ commentId: comment.id });
+    if (!accepted) return;
+    rememberStart(conversationKey, threadRoot);
+    void react({ commentId: comment.id });
   });
 
   // Reads and verifies the raw request stream itself, so nothing may parse the

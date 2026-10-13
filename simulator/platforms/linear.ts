@@ -43,7 +43,7 @@ const THREADS: Thread[] = Object.entries(PLACES).map(([id, place]) => ({
     {
       id: "Comment.create.reply",
       label: "Comment.create (threaded reply)",
-      hint: "A reply under the newest top-level comment. The forwarder answers in that same sub-thread. With nothing above it, it is sent as a top-level comment instead.",
+      hint: "A reply under the newest top-level comment. The forwarder answers in the thread its conversation started in. With nothing above it, it is sent as a top-level comment instead.",
     },
   ],
 }));
