@@ -91,7 +91,7 @@ const linearOverrides = platformOverrides.extend({
 
 /** Least severe first: the order is the severity order, not alphabetical. */
 const LOG_LEVEL_LIST = [
-  "- `debug` why a delivery was skipped: a duplicate, a bot author, or a name absent from `allowedAuthors`.",
+  "- `debug` why a delivery was skipped: a duplicate, our own post, a name on `ignoreAuthors`, or a name absent from `allowedAuthors`.",
   "- `info` accepted mentions, the command starting and finishing, and replies posted.",
   "- `warn` refused webhooks, and best-effort failures such as a reaction or a reply that did not go through.",
   "- `error` outright failures only, such as a command exiting non-zero.",
@@ -239,16 +239,12 @@ export const fileSchema = z
       .describe(
         "Emoji name used to acknowledge a mention that was accepted and queued, with or without surrounding colons. GitHub takes only its own fixed set (`eyes`, `+1`, `-1`, `laugh`, `hooray`/`tada`, `confused`, `heart`, `rocket`); anything else still works on Slack and Linear and is skipped on GitHub, with a warning at startup. Default: `eyes`.",
       ),
-    ignoreBots: z
-      .boolean()
-      .default(true)
-      .describe(
-        "Skip mentions written by bots. Keep this on: it is what stops the bot from re-triggering itself on its own replies. Default: `true`.",
-      ),
     ignoreAuthors: z
       .array(z.string())
       .default([])
-      .describe("Additional author names or logins to skip, compared case-insensitively."),
+      .describe(
+        "Author names or logins whose mentions are skipped, people and bots alike, compared case-insensitively. Its own posts are already skipped without being listed, wherever the forwarder has an identity of its own to recognize: on Slack that is the app it posts as. On GitHub and Linear it posts as whoever owns the token, so a bot you do not want starting runs — a scheduler, a release bot, a noisy integration — goes here. A Slack bot may be named by its display name or by its bot id, `B01ABCDEF`, since Slack sends an event with whichever it has. Run with `\"logLevel\": \"debug\"` and read `author=` and `botId=` on the `mention accepted` line to see what a given author offers.",
+      ),
     github: githubOverrides
       .optional()
       .describe(
@@ -321,7 +317,6 @@ export type Config = {
   logLevel: Level;
   maxConcurrentConversations: number;
   reactionEmoji: string;
-  ignoreBots: boolean;
   ignoreAuthors: string[];
   github: GitHubSettings | undefined;
   slack: SlackSettings | undefined;
@@ -451,7 +446,6 @@ export function loadConfig(path: string): Config {
     logLevel: file.logLevel,
     maxConcurrentConversations: file.maxConcurrentConversations,
     reactionEmoji: file.reactionEmoji,
-    ignoreBots: file.ignoreBots,
     ignoreAuthors: file.ignoreAuthors,
     github:
       githubSecret === undefined

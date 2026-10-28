@@ -32,6 +32,14 @@ const MESSAGE_KIND: Record<string, string> = {
   mpim: "message.mpim",
 };
 
+/**
+ * Whether we posted it ourselves. Bolt's own `ignoreSelf` skips a post of ours only where it
+ * arrives with the `bot_message` subtype, which an `app_mention` of ours never does.
+ */
+function isOurs(botId: string | undefined, ourBotId: string | undefined): boolean {
+  return botId !== undefined && botId === ourBotId;
+}
+
 /** The bot's own mention token, or every user's when auth.test never said which id is the bot's. */
 function botMention(botUserId: string | undefined): RegExp {
   return botUserId === undefined ? ANY_USER_MENTION : new RegExp(`<@${botUserId}(?:\\|[^>]*)?>`, "g");
@@ -45,6 +53,8 @@ type Incoming = {
   team: string;
   userId: string | undefined;
   botId: string | undefined;
+  botName: string | undefined;
+  isSelf: boolean;
   text: string;
   prompt: string;
   conversationKey: string;
@@ -110,6 +120,8 @@ export function mountSlack(
       team: body.team_id,
       userId: event.user,
       botId: event.bot_id,
+      botName: event.bot_profile?.name ?? event.username,
+      isSelf: isOurs(event.bot_id, context.botId),
       text,
       prompt: trigger.strip(text.replace(botMention(context.botUserId), "").trim()),
       conversationKey: `slack:${body.team_id}:${event.channel}:${event.thread_ts ?? event.ts}`,
@@ -140,6 +152,8 @@ export function mountSlack(
         team: body.team_id,
         userId: event.user,
         botId: event.bot_id,
+        botName: event.bot_profile?.name,
+        isSelf: isOurs(event.bot_id, context.botId),
         text,
         prompt: trigger.strip(text),
         conversationKey: `slack:${body.team_id}:${event.channel}:${event.thread_ts ?? event.ts}`,
@@ -156,6 +170,8 @@ export function mountSlack(
       team: body.team_id,
       userId: event.user,
       botId: event.bot_id,
+      botName: event.bot_profile?.name,
+      isSelf: isOurs(event.bot_id, context.botId),
       text,
       // A DM is addressed to the bot by definition, so the whole message is the
       // instruction - no trigger phrase required and nothing to strip.
@@ -174,7 +190,12 @@ export function mountSlack(
   });
 
   async function forward(incoming: Incoming): Promise<void> {
-    const author = incoming.userId === undefined ? "" : await resolveDisplayName(incoming.userId);
+    // A bot's post carries no user id, and an author of "" is one `ignoreAuthors` could never name,
+    // so the bot id stands in when Slack sent no name for it.
+    const author =
+      incoming.userId === undefined
+        ? (incoming.botName ?? incoming.botId ?? "")
+        : await resolveDisplayName(incoming.userId);
     const url = await resolvePermalink(incoming.channel, incoming.ts, incoming.team);
 
     const accepted = intake(
@@ -191,7 +212,7 @@ export function mountSlack(
         raw: undefined,
         postReply: (body) => postReply(incoming, body),
       },
-      { isBot: incoming.botId !== undefined },
+      { isSelf: incoming.isSelf, botId: incoming.botId },
     );
 
     if (!accepted) return;

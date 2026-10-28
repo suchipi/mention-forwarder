@@ -16,7 +16,6 @@
   "logLevel": "info",
   "maxConcurrentConversations": 4,
   "reactionEmoji": "eyes",
-  "ignoreBots": true,
   "ignoreAuthors": [],
   "github": {
     "path": "/github/webhooks",

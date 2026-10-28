@@ -1,7 +1,7 @@
 import type { Router } from "express";
 import type { Platform } from "../src/types.ts";
 
-/** Someone who can post in the simulated platform. A bot author exercises the forwarder's `ignoreBots`. */
+/** Someone who can post in the simulated platform. A bot author posts with the bot fields a real one would. */
 export type Author = { id: string; name: string; isBot: boolean };
 
 /** One webhook a thread can send. `id` is the platform's own event name, shown verbatim in the UI. */

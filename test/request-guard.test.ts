@@ -31,7 +31,6 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     logLevel: "error",
     maxConcurrentConversations: 4,
     reactionEmoji: "eyes",
-    ignoreBots: true,
     ignoreAuthors: [],
     github: undefined,
     slack: undefined,

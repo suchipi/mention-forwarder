@@ -98,7 +98,9 @@ export function createLinearMiddleware(
             ? Promise.reject(new Error("comment has no issue to reply on"))
             : postReply({ issueId, parentId: startedUnder.get(conversationKey) ?? threadRoot }, body),
       },
-      { isBot: payload.actor?.type !== "user" },
+      // Replies go out as LINEAR_API_KEY's own user, which the webhook reports like any other actor,
+      // so our own comments are skipped through `ignoreAuthors` or not at all.
+      { isSelf: false },
     );
 
     if (!accepted) return;

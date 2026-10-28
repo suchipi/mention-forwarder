@@ -31,7 +31,6 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     logLevel: "error",
     maxConcurrentConversations: 4,
     reactionEmoji: "eyes",
-    ignoreBots: true,
     ignoreAuthors: [],
     github: undefined,
     slack: undefined,
@@ -89,7 +88,7 @@ function harness(config: Config) {
 
 test("accepts a mention and stamps receivedAt", async () => {
   const { intake, forwarded } = harness(baseConfig());
-  assert.equal(intake(candidate(), { isBot: false }), true);
+  assert.equal(intake(candidate(), { isSelf: false }), true);
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(forwarded.length, 1);
@@ -102,9 +101,9 @@ test("accepts a mention and stamps receivedAt", async () => {
 
 test("drops the raw payload unless includeRawPayload is on", async () => {
   const off = harness(baseConfig());
-  off.intake(candidate(), { isBot: false });
+  off.intake(candidate(), { isSelf: false });
   const on = harness(baseConfig({ includeRawPayload: true }));
-  on.intake(candidate(), { isBot: false });
+  on.intake(candidate(), { isSelf: false });
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(off.forwarded[0]?.raw, undefined);
@@ -113,51 +112,57 @@ test("drops the raw payload unless includeRawPayload is on", async () => {
 
 test("the same delivery id is only forwarded once", async () => {
   const { intake, forwarded } = harness(baseConfig());
-  assert.equal(intake(candidate({ id: "same" }), { isBot: false }), true);
-  assert.equal(intake(candidate({ id: "same" }), { isBot: false }), false);
+  assert.equal(intake(candidate({ id: "same" }), { isSelf: false }), true);
+  assert.equal(intake(candidate({ id: "same" }), { isSelf: false }), false);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(forwarded.length, 1);
 });
 
-test("bot authors are skipped while ignoreBots is on, and kept when off", async () => {
-  const on = harness(baseConfig());
-  assert.equal(on.intake(candidate(), { isBot: true }), false);
-
-  const off = harness(baseConfig({ ignoreBots: false }));
-  assert.equal(off.intake(candidate(), { isBot: true }), true);
+test("our own post is skipped, and another bot's is not", async () => {
+  const { intake, forwarded } = harness(baseConfig());
+  assert.equal(intake(candidate(), { isSelf: true }), false);
+  assert.equal(intake(candidate({ id: "two", author: "nightly-automation" }), { isSelf: false }), true);
 
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(on.forwarded.length, 0);
-  assert.equal(off.forwarded.length, 1);
+  assert.equal(forwarded.length, 1);
+});
+
+test("ignoreAuthors matches a bot by its id as well as its name", async () => {
+  const { intake, forwarded } = harness(baseConfig({ ignoreAuthors: ["B0NOISY"] }));
+  assert.equal(intake(candidate({ author: "Noisy App" }), { isSelf: false, botId: "b0noisy" }), false);
+  assert.equal(intake(candidate({ id: "two", author: "Quiet App" }), { isSelf: false, botId: "B0QUIET" }), true);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 1);
 });
 
 test("ignoreAuthors matches regardless of case", async () => {
   const { intake, forwarded } = harness(baseConfig({ ignoreAuthors: ["Noisy-Bot"] }));
-  assert.equal(intake(candidate({ author: "noisy-bot" }), { isBot: false }), false);
-  assert.equal(intake(candidate({ id: "other", author: "suchipi" }), { isBot: false }), true);
+  assert.equal(intake(candidate({ author: "noisy-bot" }), { isSelf: false }), false);
+  assert.equal(intake(candidate({ id: "other", author: "suchipi" }), { isSelf: false }), true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(forwarded.length, 1);
 });
 
 test("allowedAuthors narrows to a list, case-insensitively", async () => {
   const { intake, forwarded } = harness(baseConfig({ github: githubSettings(["Suchipi", "riley"]) }));
-  assert.equal(intake(candidate({ author: "SUCHIPI" }), { isBot: false }), true);
-  assert.equal(intake(candidate({ id: "two", author: "riley" }), { isBot: false }), true);
-  assert.equal(intake(candidate({ id: "three", author: "a-stranger" }), { isBot: false }), false);
+  assert.equal(intake(candidate({ author: "SUCHIPI" }), { isSelf: false }), true);
+  assert.equal(intake(candidate({ id: "two", author: "riley" }), { isSelf: false }), true);
+  assert.equal(intake(candidate({ id: "three", author: "a-stranger" }), { isSelf: false }), false);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(forwarded.length, 2);
 });
 
 test("an empty allowedAuthors leaves everyone able to trigger", async () => {
   const { intake, forwarded } = harness(baseConfig({ github: githubSettings([]) }));
-  assert.equal(intake(candidate({ author: "anyone-at-all" }), { isBot: false }), true);
+  assert.equal(intake(candidate({ author: "anyone-at-all" }), { isSelf: false }), true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(forwarded.length, 1);
 });
 
 test("one platform's allowlist does not narrow another's", async () => {
   const { intake, forwarded } = harness(baseConfig({ github: githubSettings(["suchipi"]) }));
-  assert.equal(intake(candidate({ platform: "linear", author: "a-stranger" }), { isBot: false }), true);
+  assert.equal(intake(candidate({ platform: "linear", author: "a-stranger" }), { isSelf: false }), true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(forwarded.length, 1);
 });
@@ -166,7 +171,7 @@ test("a NUL byte is stripped rather than costing the mention its run", async () 
   const { intake, forwarded } = harness(baseConfig());
   const nul = String.fromCharCode(0);
   assert.equal(
-    intake(candidate({ text: `@my-bot go${nul}now`, prompt: `go${nul}now`, author: `su${nul}chipi` }), { isBot: false }),
+    intake(candidate({ text: `@my-bot go${nul}now`, prompt: `go${nul}now`, author: `su${nul}chipi` }), { isSelf: false }),
     true,
   );
   await new Promise((resolve) => setImmediate(resolve));
@@ -178,5 +183,5 @@ test("a NUL byte is stripped rather than costing the mention its run", async () 
 
 test("a NUL byte cannot smuggle an author past ignoreAuthors", async () => {
   const { intake } = harness(baseConfig({ ignoreAuthors: ["noisy-bot"] }));
-  assert.equal(intake(candidate({ author: `noisy-${String.fromCharCode(0)}bot` }), { isBot: false }), false);
+  assert.equal(intake(candidate({ author: `noisy-${String.fromCharCode(0)}bot` }), { isSelf: false }), false);
 });

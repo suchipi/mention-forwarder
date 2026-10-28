@@ -231,8 +231,7 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `logLevel` | `"info"` | `debug`, `info`, `warn`, or `error`. |
 | `maxConcurrentConversations` | `4` | How many different threads may be in flight at once. |
 | `reactionEmoji` | `"eyes"` | Emoji name used to acknowledge a mention. |
-| `ignoreBots` | `true` | Skip mentions written by bots. Keep this on — it is what stops your agent from re-triggering itself. |
-| `ignoreAuthors` | `[]` | Additional author names or logins to skip. |
+| `ignoreAuthors` | `[]` | Author names or logins to skip, people and bots alike. Its own posts are skipped without being listed; see [Bots, and your own posts](#bots-and-your-own-posts). |
 | `github.triggerPhrases` | *required if GitHub is on* | Phrases that count as a mention, e.g. `["@my-bot"]`. |
 | `github.path` | `/github/webhooks` | Route GitHub posts to. |
 | `linear.triggerPhrases` | *required if Linear is on* | As above. |
@@ -355,7 +354,7 @@ A request has four things to get past before it can run your command, and it fai
 | **Size** | A body over `maxPayloadBytes` (5 MiB by default) is refused with `413`, and one that arrives without a `Content-Length` with `411`. This happens first because the libraries underneath buffer the whole body before they look at the signature, so an unsigned request could otherwise spend as much of your memory as it liked. |
 | **Source** | GitHub and Linear both publish the addresses their webhooks come from, and anything else gets `403`. GitHub's list is read from `api.github.com/meta` at startup and once a day after that, falling back to a bundled copy if that call fails; Linear's is bundled, because Linear publishes no equivalent endpoint. **Slack is not checked**, because Slack runs on AWS and publishes no ranges. Loopback always passes, which is what a tunnel arrives on. Override any of it with `<platform>.allowedSources`, which for GitHub also pins the list: neither the startup fetch nor the daily refresh runs once you set it. To add an address without giving up the published ranges, put `"...default"` in the list — it expands to whatever that platform's built-in list holds at the position you wrote it, and for GitHub it keeps the refresh running, re-expanding against each freshly fetched set so a rotated range still arrives. |
 | **Signature** | HMAC-SHA256 for GitHub and Linear, Slack's own scheme for Slack, each compared in constant time. Slack rejects anything signed more than five minutes ago and Linear more than a minute, so a captured delivery cannot be replayed later. |
-| **Author** | `ignoreBots` and `ignoreAuthors` drop mentions you don't want; `<platform>.allowedAuthors` inverts that into a list of the only people who may trigger the command at all. Worth setting on a public repo, where otherwise anyone who can leave a comment can start your agent. |
+| **Author** | `ignoreAuthors` drops the writers you don't want, bots included; `<platform>.allowedAuthors` inverts that into a list of the only people who may trigger the command at all. Worth setting on a public repo, where otherwise anyone who can leave a comment can start your agent. A post of the forwarder's own is dropped before either list, where it can tell: see [Bots, and your own posts](#bots-and-your-own-posts). |
 
 Behind a tunnel or a router the connection arrives from your own machine, so the source check reads the original address out of `X-Forwarded-For` instead. That header is only believed when the hop that set it is itself trusted, which `trustedProxies` decides; by default that means loopback and private networks. Without that rule anyone could name whatever source address they liked.
 
@@ -377,6 +376,20 @@ Two things worth knowing before you rely on it:
 - **A display name is not an identity.** On Slack and Linear it is chosen by the account holder and can be changed, and two people can pick the same one. GitHub logins are unique and are the only one of the three that is a real handle.
 
 If you are not sure what a given person's value is, run once with `"logLevel": "debug"` and read the `author=` field off the `mention accepted` line. That is the exact string the list is compared against, and it is the same value `{{author}}` and `MENTION_AUTHOR` carry.
+
+### Bots, and your own posts
+
+A message written by a bot counts like anyone else's: a nightly schedule, a workflow, or another app posting "@your-bot do the thing" starts a run the same way a person would. Two things are dropped.
+
+**Your own posts**, where the forwarder can recognise them. On Slack it posts as your app, and an event carrying that app's bot id is skipped before either list below is consulted, so a reply of yours can never start a run. On GitHub and Linear it posts as whoever owns the token or the API key, which is usually you, and a webhook reports that account like any other — there is no app identity to match on. What protects those two is that `src/mentions.ts` defuses every mention in a reply on the way out, so a reply quoting "@your-bot" does not read as a mention when it comes back.
+
+**Anyone on `ignoreAuthors`**, which is the list for a bot you want kept out:
+
+```json
+{ "ignoreAuthors": ["Noisy App"] }
+```
+
+It matches the same string `allowedAuthors` matches, case-insensitively. A Slack bot can also be named by its bot id (`B01ABCDEF`), which is worth using, because a bot's post carries no user id and reaches the forwarder with whatever name Slack put in the event — the app's display name, or nothing at all, in which case the id becomes the author. Run with `"logLevel": "debug"` and the `mention accepted` line names both, as `author=` and `botId=`.
 
 ## What triggers a forward
 
@@ -440,7 +453,8 @@ GitHub only accepts its own fixed set of reactions. `eyes`, `+1`, `-1`, `laugh`,
 | `bot token could not be verified` | The Slack token is wrong or expired. GitHub and Linear keep working; only Slack is affected. |
 | `command failed to start … is "x" installed and on PATH?` | `command[0]` isn't resolvable. Use an absolute path — a GUI-launched process may not have your shell's `PATH`. |
 | A mention is logged as accepted but nothing runs | Look for `command exited non-zero`; your program's own stdout and stderr are in the log, prefixed. |
-| Your agent's own comments trigger more runs | Keep `ignoreBots: true`, and add the account it posts as to `ignoreAuthors`. Replies the forwarder posts are authored by your app or token, so `ignoreBots` normally covers them. |
+| Your agent's own comments trigger more runs | On Slack it posts as your app and those posts are dropped unasked. On GitHub and Linear it posts as whoever owns the token, so add that account to `ignoreAuthors` — and note that doing so stops that account mentioning the bot at all. Replies have their mentions defused on the way out, so a reply quoting one does not count as a mention either way. |
+| A bot you do want is being skipped, or one you don't is getting through | `ignoreAuthors` is the only list that skips a bot. The name to put in it is the `author=` field on the `mention accepted` line at `"logLevel": "debug"`, and for a Slack bot the `botId=` beside it works just as well. |
 | Nothing is posted even though the command wrote a reply | Check it wrote to the path in `MENTION_REPLY_FILE` (or `mention.replyFile`) and not a path of its own. Set `replyDir` and look in it. |
 | A reply is posted but the text is empty or partial | Whitespace-only content is skipped. Under `per-conversation`, a reply is only posted once writes settle for `replyDebounceMs`; raise it if your command writes in slow bursts. |
 | `cannot post reply: no GitHub credentials configured` | Reactions and replies both need `GITHUB_TOKEN`, or `GITHUB_APP_ID` plus a private key. |

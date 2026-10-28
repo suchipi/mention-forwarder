@@ -94,7 +94,6 @@ type Place = {
   url: string;
   nodeId: string;
   author: string;
-  isBot: boolean;
   title: string;
   conversationKey: string;
   owner: string;
@@ -248,7 +247,9 @@ export function createGitHubMiddleware(
         raw: payload,
         postReply: (body) => postReply(place, installationId, body),
       },
-      { isBot: place.isBot },
+      // Replies go out as the token's own account, which a webhook reports like any other author,
+      // so our own comments are skipped through `ignoreAuthors` or not at all.
+      { isSelf: false },
     );
 
     if (accepted && reactionContent !== undefined) void react(installationId, place.nodeId, reactionContent);
@@ -265,7 +266,6 @@ export function createGitHubMiddleware(
         url: payload.comment.html_url,
         nodeId: payload.comment.node_id,
         author: payload.comment.user?.login ?? "",
-        isBot: payload.comment.user?.type === "Bot",
         title: payload.issue.title,
         conversationKey: threadKey(payload.repository.full_name, payload.issue.number),
         owner: payload.repository.owner.login,
@@ -286,7 +286,6 @@ export function createGitHubMiddleware(
         url: payload.comment.html_url,
         nodeId: payload.comment.node_id,
         author: payload.comment.user?.login ?? "",
-        isBot: payload.comment.user?.type === "Bot",
         title: payload.pull_request.title,
         conversationKey: threadKey(payload.repository.full_name, payload.pull_request.number),
         owner: payload.repository.owner.login,
@@ -311,7 +310,6 @@ export function createGitHubMiddleware(
         url: payload.review.html_url,
         nodeId: payload.review.node_id,
         author: payload.review.user?.login ?? "",
-        isBot: payload.review.user?.type === "Bot",
         title: payload.pull_request.title,
         conversationKey: threadKey(payload.repository.full_name, payload.pull_request.number),
         owner: payload.repository.owner.login,
@@ -333,7 +331,6 @@ export function createGitHubMiddleware(
         url: payload.comment.html_url,
         nodeId: payload.comment.node_id,
         author: payload.comment.user?.login ?? "",
-        isBot: payload.comment.user?.type === "Bot",
         title: payload.comment.commit_id.slice(0, 7),
         conversationKey: `github:${payload.repository.full_name}@${payload.comment.commit_id}`,
         owner: payload.repository.owner.login,
@@ -354,7 +351,6 @@ export function createGitHubMiddleware(
         url: payload.comment.html_url,
         nodeId: payload.comment.node_id,
         author: payload.comment.user?.login ?? "",
-        isBot: payload.comment.user?.type === "Bot",
         title: payload.discussion.title,
         conversationKey: `github:${payload.repository.full_name}/discussions/${payload.discussion.number}`,
         owner: payload.repository.owner.login,

@@ -313,8 +313,9 @@ test("github: a mention inside a discussion reply is answered under that reply's
   assert.equal(reply?.kind, "addDiscussionComment (threaded)");
 });
 
-test("github: bots and comments without the phrase are ignored", async () => {
-  await ignored("github", "issue-7", "issue_comment.created", "release-bot", "@sim-bot gh from a bot", "gh from a bot");
+test("github: a bot's comment counts, and one without the phrase does not", async () => {
+  const fromBot = await forwarded("github", "issue-7", "issue_comment.created", "release-bot", "gh from a bot");
+  assert.equal(fromBot.author, "release-bot");
   await ignored("github", "issue-7", "issue_comment.created", "lily", "gh with no phrase", "gh with no phrase");
 });
 
@@ -355,8 +356,9 @@ test("slack: the reaction and the reply come back into the thread", async () => 
   assert.ok(reply.text.startsWith("answering: "), `slack sets no replyPrefix, so its reply goes out as written: ${reply.text}`);
 });
 
-test("slack: bots and channel messages without a mention are ignored", async () => {
-  await ignored("slack", "general", "app_mention", "U0ROBOT", "<@U0SIMBOT> slack from a bot", "slack from a bot");
+test("slack: a bot's mention counts, and a channel message without one does not", async () => {
+  const fromBot = await forwarded("slack", "general", "app_mention", "U0ROBOT", "slack from a bot");
+  assert.equal(fromBot.author, "deploy-bot", "a bot has no user id to resolve, so its own name is the author");
   await ignored("slack", "general", "message.channel", "U0LILY", "slack with no mention", "slack with no mention");
 });
 
@@ -412,7 +414,8 @@ test("linear: a threaded reply with nothing above it is sent as a top-level comm
   assert.equal(data?.parentId, undefined, "a reply with no parent is not a reply");
 });
 
-test("linear: bots and comments without the phrase are ignored", async () => {
-  await ignored("linear", "acm-12", "Comment.create", "app-deploy", "@sim-bot linear from a bot", "linear from a bot");
+test("linear: a bot's comment counts, and one without the phrase does not", async () => {
+  const fromBot = await forwarded("linear", "acm-12", "Comment.create", "app-deploy", "linear from a bot");
+  assert.equal(fromBot.author, "deploy-bot");
   await ignored("linear", "acm-12", "Comment.create", "user-lily", "linear with no phrase", "linear with no phrase");
 });

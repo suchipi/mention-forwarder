@@ -13,8 +13,16 @@ export type Delivery = { mention: Mention; postReply: ReplyPoster };
 
 export type Forward = (delivery: Delivery) => Promise<void>;
 
+/** What the adapter knows about the writer that the author name alone does not carry. */
+export type Source = {
+  /** Our own post, which must never start a run: answering it is the loop. */
+  isSelf: boolean;
+  /** Slack's id for a bot, since a bot's post may reach us with no name for `ignoreAuthors` to match. */
+  botId?: string;
+};
+
 /** Returns true when the mention was queued, so the caller knows whether to acknowledge it. */
-export type Intake = (candidate: Candidate, source: { isBot: boolean }) => boolean;
+export type Intake = (candidate: Candidate, source: Source) => boolean;
 
 /** Fields a platform fills in, all of which reach the command as text. */
 const TEXT_FIELDS = ["id", "kind", "url", "text", "prompt", "author", "title", "conversationKey"] as const;
@@ -64,12 +72,12 @@ export function createIntake(
       log.debug("ignoring duplicate delivery", { platform, id });
       return false;
     }
-    if (config.ignoreBots && source.isBot) {
-      log.debug("ignoring bot author", { platform, id, author });
+    if (source.isSelf) {
+      log.debug("ignoring our own post", { platform, id, author });
       return false;
     }
-    if (ignored.has(author.toLowerCase())) {
-      log.debug("ignoring author on ignoreAuthors list", { platform, id, author });
+    if (ignored.has(author.toLowerCase()) || (source.botId !== undefined && ignored.has(source.botId.toLowerCase()))) {
+      log.debug("ignoring author on ignoreAuthors list", { platform, id, author, botId: source.botId });
       return false;
     }
     const allowlist = allowed.get(platform);
@@ -90,6 +98,7 @@ export function createIntake(
       platform,
       kind: mention.kind,
       author,
+      ...(source.botId === undefined ? {} : { botId: source.botId }),
       url: mention.url,
       conversation: mention.conversationKey,
       ...queue.stats(),

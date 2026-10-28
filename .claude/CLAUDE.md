@@ -30,7 +30,7 @@ Deliveries move in one direction through six stages, each with a single responsi
 | --- | --- | --- |
 | Guard | `src/request-guard.ts` | Refuse a request on size or source address before any platform code reads it. |
 | Adapter | `src/platforms/{github,linear,slack}.ts` | Verify the signature, pick out mentions, normalize to a `Candidate`, add the acknowledgement reaction, and know how to post a reply. |
-| Intake | `src/intake.ts` | Shared policy for all three: scrub NUL bytes, drop duplicates, apply the bot/ignore/allow lists, stamp `receivedAt` and `replyFile`, enqueue. |
+| Intake | `src/intake.ts` | Shared policy for all three: scrub NUL bytes, drop duplicates, drop our own posts, apply `ignoreAuthors` and `allowedAuthors`, stamp `receivedAt` and `replyFile`, enqueue. |
 | Queue | `src/queue.ts` | Serial within a `conversationKey`, parallel across keys, capped at `maxConcurrentConversations`. |
 | Runner | `src/runner.ts` | Spawn or reuse the child process and wire up argv, env, and stdin. |
 | Mailbox | `src/reply.ts` | Watch reply files and post whatever was appended since the last post. |
@@ -54,6 +54,8 @@ Client addresses come from `req.ip` with Express `trust proxy` set from `trusted
 ### Replies are rewritten on the way out
 
 `src/mentions.ts` defuses mentions in every reply, because a reply is posted as the bot and usually quotes attacker-controlled text. Slack loses the angle brackets that make a mention live; GitHub and Linear get a zero-width space after the `@`, since neither offers a real escape. Code, links and URLs are skipped so nothing copy-pasteable is altered. Any new reply path must call the matching function.
+
+It is also what keeps a reply from starting a run of its own. A bot's post counts like anyone's, and only Slack can recognize ours: Bolt hands every handler the app's own `bot_id`, which `src/platforms/slack.ts` compares against. GitHub and Linear replies go out as whoever owns the token, which a webhook reports like any other author, so what stops the loop there is that a defused `@name` no longer matches a trigger phrase. A reply printing the phrase inside a code span keeps it live, since defusing deliberately skips code - the narrow case where a reply can re-trigger.
 
 ### `Mention` is a public interface
 
