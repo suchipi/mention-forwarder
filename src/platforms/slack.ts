@@ -45,6 +45,7 @@ type Incoming = {
   team: string;
   userId: string | undefined;
   botId: string | undefined;
+  botName: string | undefined;
   text: string;
   prompt: string;
   conversationKey: string;
@@ -110,6 +111,7 @@ export function mountSlack(
       team: body.team_id,
       userId: event.user,
       botId: event.bot_id,
+      botName: event.bot_profile?.name ?? event.username,
       text,
       prompt: trigger.strip(text.replace(botMention(context.botUserId), "").trim()),
       conversationKey: `slack:${body.team_id}:${event.channel}:${event.thread_ts ?? event.ts}`,
@@ -140,6 +142,7 @@ export function mountSlack(
         team: body.team_id,
         userId: event.user,
         botId: event.bot_id,
+        botName: event.bot_profile?.name,
         text,
         prompt: trigger.strip(text),
         conversationKey: `slack:${body.team_id}:${event.channel}:${event.thread_ts ?? event.ts}`,
@@ -156,6 +159,7 @@ export function mountSlack(
       team: body.team_id,
       userId: event.user,
       botId: event.bot_id,
+      botName: event.bot_profile?.name,
       text,
       // A DM is addressed to the bot by definition, so the whole message is the
       // instruction - no trigger phrase required and nothing to strip.
@@ -174,7 +178,12 @@ export function mountSlack(
   });
 
   async function forward(incoming: Incoming): Promise<void> {
-    const author = incoming.userId === undefined ? "" : await resolveDisplayName(incoming.userId);
+    // A bot's post carries no user id, and an author of "" is one no allowedBots entry could name,
+    // so its id stands in when Slack sent no name for it.
+    const author =
+      incoming.userId === undefined
+        ? (incoming.botName ?? incoming.botId ?? "")
+        : await resolveDisplayName(incoming.userId);
     const url = await resolvePermalink(incoming.channel, incoming.ts, incoming.team);
 
     const accepted = intake(
@@ -191,7 +200,7 @@ export function mountSlack(
         raw: undefined,
         postReply: (body) => postReply(incoming, body),
       },
-      { isBot: incoming.botId !== undefined },
+      { isBot: incoming.botId !== undefined, botId: incoming.botId },
     );
 
     if (!accepted) return;

@@ -240,6 +240,7 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `slack.triggerPhrases` | `[]` | An optional *second* way in, not a filter: a real mention always counts, and so does any message carrying one of these. Needs extra subscriptions; see [Slack](#slack). |
 | `slack.path` | `/slack/events` | Route Slack posts to. |
 | `<platform>.allowedAuthors` | `[]` | Only these authors may trigger the command on that platform. Empty means anyone may. Matched case-insensitively; [What `allowedAuthors` matches](#what-allowedauthors-matches) says exactly which name each platform hands over. |
+| `<platform>.allowedBots` | `[]` | Bots that may trigger the command even while `ignoreBots` is on, named the way `allowedAuthors` names a person. See [Letting one bot through](#letting-one-bot-through). |
 | `<platform>.allowedSources` | its published ranges | Addresses or CIDR ranges that platform's webhooks may arrive from. Replaces the built-in list; an empty list means no source check at all, and loopback always passes either way. The entry `"...default"` expands to the built-in list where you put it, so `["...default", "10.0.0.1"]` adds one address without giving up the rest. Setting the GitHub one also pins it, stopping the daily refresh, unless `"...default"` is in the list. See [Who can reach it](#who-can-reach-it). |
 | `<platform>.replyPrefix` | *none* | Text put in front of every reply posted on that platform. Joined exactly as written, so end it with `\n\n` if it should stand as its own paragraph. See [Putting a prefix on every reply](#putting-a-prefix-on-every-reply). |
 | `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
@@ -355,7 +356,7 @@ A request has four things to get past before it can run your command, and it fai
 | **Size** | A body over `maxPayloadBytes` (5 MiB by default) is refused with `413`, and one that arrives without a `Content-Length` with `411`. This happens first because the libraries underneath buffer the whole body before they look at the signature, so an unsigned request could otherwise spend as much of your memory as it liked. |
 | **Source** | GitHub and Linear both publish the addresses their webhooks come from, and anything else gets `403`. GitHub's list is read from `api.github.com/meta` at startup and once a day after that, falling back to a bundled copy if that call fails; Linear's is bundled, because Linear publishes no equivalent endpoint. **Slack is not checked**, because Slack runs on AWS and publishes no ranges. Loopback always passes, which is what a tunnel arrives on. Override any of it with `<platform>.allowedSources`, which for GitHub also pins the list: neither the startup fetch nor the daily refresh runs once you set it. To add an address without giving up the published ranges, put `"...default"` in the list — it expands to whatever that platform's built-in list holds at the position you wrote it, and for GitHub it keeps the refresh running, re-expanding against each freshly fetched set so a rotated range still arrives. |
 | **Signature** | HMAC-SHA256 for GitHub and Linear, Slack's own scheme for Slack, each compared in constant time. Slack rejects anything signed more than five minutes ago and Linear more than a minute, so a captured delivery cannot be replayed later. |
-| **Author** | `ignoreBots` and `ignoreAuthors` drop mentions you don't want; `<platform>.allowedAuthors` inverts that into a list of the only people who may trigger the command at all. Worth setting on a public repo, where otherwise anyone who can leave a comment can start your agent. |
+| **Author** | `ignoreBots` and `ignoreAuthors` drop mentions you don't want; `<platform>.allowedAuthors` inverts that into a list of the only people who may trigger the command at all. Worth setting on a public repo, where otherwise anyone who can leave a comment can start your agent. `<platform>.allowedBots` is the one hole in `ignoreBots`, and holds only the bots you name. |
 
 Behind a tunnel or a router the connection arrives from your own machine, so the source check reads the original address out of `X-Forwarded-For` instead. That header is only believed when the hop that set it is itself trusted, which `trustedProxies` decides; by default that means loopback and private networks. Without that rule anyone could name whatever source address they liked.
 
@@ -378,6 +379,25 @@ Two things worth knowing before you rely on it:
 
 If you are not sure what a given person's value is, run once with `"logLevel": "debug"` and read the `author=` field off the `mention accepted` line. That is the exact string the list is compared against, and it is the same value `{{author}}` and `MENTION_AUTHOR` carry.
 
+### Letting one bot through
+
+`ignoreBots` is all-or-nothing, and it is on for a good reason: your agent's own replies are bot-authored too, so turning it off is how a bot ends up answering itself in a loop. But a nightly schedule, a workflow, or another app posting "@your-bot do the thing" is also a bot, and that message is dropped along with everything else.
+
+`<platform>.allowedBots` names the exceptions:
+
+```json
+{
+  "slack": { "allowedBots": ["Nightly Automation"] }
+}
+```
+
+The names are matched the same way `allowedAuthors` matches a person: case-insensitively, against the one string that platform supplies. Slack is the exception, because a bot's message carries no user id to resolve. Its display name stands in, falling back to its bot id (`B01ABCDEF`) when the event arrives without a name, and `allowedBots` matches either — so listing the id works whichever one Slack sent. Run with `"logLevel": "debug"` and the `ignoring bot author` line names both, as `author=` and `botId=`.
+
+Two things it does not do:
+
+- **It is not a way past the other lists.** A bot still has to be in `allowedAuthors` where you have set one, and `ignoreAuthors` still skips it.
+- **It is not for your own app.** Naming the app the forwarder posts as puts every reply back through the front door as a fresh mention, and nothing downstream will stop that.
+
 ## What triggers a forward
 
 | Platform | Event | `kind` |
@@ -397,6 +417,7 @@ Deliberately **not** included:
 - **Edits.** Only newly created comments fire. Editing an old comment to add the phrase will not trigger anything, which also means routine edits can't re-trigger work. The same holds for DMs: an edited message is ignored.
 - **The body of a new issue, PR, or discussion.** Only comments count on every platform, so mentioning the bot in a GitHub PR description or a Linear issue description does nothing; comment on it afterwards instead.
 - **Slack chatter that matches nothing.** Outside a one-to-one DM a message must mention the bot or carry a trigger phrase; with no phrases configured, a real mention is the only way in.
+- **Anything a bot posted.** A scheduled post, a workflow's message, another app's comment: all of them are bot-authored, mention or no mention, and `ignoreBots` drops them so your agent cannot set itself off. To let one in, name it in `<platform>.allowedBots`; see [Letting one bot through](#letting-one-bot-through).
 - **Your command's stdout.** That goes to the log. Replies are opt-in through the reply file, so ordinary logging never leaks into a comment.
 
 Retried deliveries are recognised and dropped, so a slow command won't cause the same mention to run twice.
@@ -436,6 +457,7 @@ GitHub only accepts its own fixed set of reactions. `eyes`, `+1`, `-1`, `laugh`,
 | Deliveries come back `403` | The source check refused them. The log names the address it saw. If your tunnel or proxy is not loopback or on a private network, add it to `trustedProxies`; if the platform has moved to a new range, add it to `<platform>.allowedSources` — as `["...default", "<the address>"]`, so the published ranges stay in and GitHub's daily refresh keeps running. |
 | Deliveries come back `413` or `411` | The body was over `maxPayloadBytes`, or arrived with no `Content-Length`. Raise `maxPayloadBytes` if a real payload is genuinely that big. |
 | A reply reads `@name` but nobody was notified | Working as intended; see [Replies never mention anyone](#replies-never-mention-anyone). |
+| A scheduled post or another app's message never triggers it | It is a bot that wrote it, and `ignoreBots` drops every bot. The log says `ignoring bot author` at `"logLevel": "debug"`; the `author=` on that line is the string to put in `<platform>.allowedBots`. See [Letting one bot through](#letting-one-bot-through). |
 | Nobody can trigger it after setting `allowedAuthors` | The name that platform supplies is not what you listed. On Slack it is a raw user id like `U04ABCDEF` unless the app has `users:read`. Compare your list against the `author=` field on the `mention accepted` line at `"logLevel": "debug"`, and see [What `allowedAuthors` matches](#what-allowedauthors-matches). |
 | `bot token could not be verified` | The Slack token is wrong or expired. GitHub and Linear keep working; only Slack is affected. |
 | `command failed to start … is "x" installed and on PATH?` | `command[0]` isn't resolvable. Use an absolute path — a GUI-launched process may not have your shell's `PATH`. |

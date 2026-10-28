@@ -15,6 +15,12 @@ const platformOverrides = z.strictObject({
     .describe(
       "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against.",
     ),
+  allowedBots: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      "Bots on this platform that may trigger the command even while `ignoreBots` is on, named the way `allowedAuthors` names a person. It is how a scheduled post, or any other app's message, gets through without turning `ignoreBots` off and letting every bot in, the forwarder's own replies included. Never name the app the forwarder itself posts as. Nothing else is relaxed: `ignoreAuthors` still skips a bot named there, and where `allowedAuthors` is set a bot has to be on that list too. Compared case-insensitively against the same string `allowedAuthors` uses, which is a GitHub login, a Slack display name, or a Linear service name. A Slack bot may also be named by its bot id, `B01ABCDEF`, which is what to use when Slack sends the event without a name in it. Run with `\"logLevel\": \"debug\"` and read the `author=` and `botId=` fields on the `ignoring bot author` line to see what a given bot offers.",
+    ),
   /** Addresses or CIDR ranges this platform's webhooks may arrive from. Replaces the built-in list. */
   allowedSources: z.array(z.string().min(1)).optional(),
   replyPrefix: z
@@ -282,6 +288,8 @@ type CommonSettings = {
   triggerPhrases: string[];
   /** Empty means anyone may trigger the command. */
   allowedAuthors: string[];
+  /** Bots named here may trigger the command even while `ignoreBots` is on. */
+  allowedBots: string[];
   /** Undefined leaves the platform's built-in source list in place. */
   allowedSources: string[] | undefined;
   /** Prepended to every reply this platform posts. Empty means the reply goes out as written. */
@@ -426,6 +434,7 @@ export function loadConfig(path: string): Config {
       path: file.slack?.path ?? DEFAULT_PATHS.slack,
       triggerPhrases: file.slack?.triggerPhrases ?? [],
       allowedAuthors: file.slack?.allowedAuthors ?? [],
+      allowedBots: file.slack?.allowedBots ?? [],
       allowedSources: file.slack?.allowedSources,
       replyPrefix: file.slack?.replyPrefix ?? "",
       signingSecret: slackSigningSecret,
@@ -460,6 +469,7 @@ export function loadConfig(path: string): Config {
             path: file.github?.path ?? DEFAULT_PATHS.github,
             triggerPhrases: requireTriggerPhrases("github", file.github?.triggerPhrases),
             allowedAuthors: file.github?.allowedAuthors ?? [],
+            allowedBots: file.github?.allowedBots ?? [],
             allowedSources: file.github?.allowedSources,
             replyPrefix: file.github?.replyPrefix ?? "",
             webhookSecret: githubSecret,
@@ -474,6 +484,7 @@ export function loadConfig(path: string): Config {
             path: file.linear?.path ?? DEFAULT_PATHS.linear,
             triggerPhrases: requireTriggerPhrases("linear", file.linear?.triggerPhrases),
             allowedAuthors: file.linear?.allowedAuthors ?? [],
+            allowedBots: file.linear?.allowedBots ?? [],
             allowedSources: file.linear?.allowedSources,
             replyPrefix: file.linear?.replyPrefix ?? "",
             webhookSecret: linearSecret,

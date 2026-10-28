@@ -22,6 +22,7 @@
     "path": "/github/webhooks",
     "triggerPhrases": ["@my-bot"],
     "allowedAuthors": [],
+    "allowedBots": [],
     "allowedSources": [
       "192.30.252.0/22",
       "185.199.108.0/22",
@@ -37,6 +38,7 @@
     "path": "/slack/events",
     "triggerPhrases": [],
     "allowedAuthors": [],
+    "allowedBots": [],
     "allowedSources": [],
     "replyPrefix": "",
     "apiUrl": "https://slack.com/api/"
@@ -45,6 +47,7 @@
     "path": "/linear/webhooks",
     "triggerPhrases": ["@my-bot"],
     "allowedAuthors": [],
+    "allowedBots": [],
     "allowedSources": [
       "35.231.147.226",
       "35.243.134.228",

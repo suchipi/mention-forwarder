@@ -57,11 +57,12 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
   };
 }
 
-function githubSettings(allowedAuthors: string[]): NonNullable<Config["github"]> {
+function githubSettings(allowedAuthors: string[], allowedBots: string[] = []): NonNullable<Config["github"]> {
   return {
     path: "/github/webhooks",
     triggerPhrases: ["@my-bot"],
     allowedAuthors,
+    allowedBots,
     allowedSources: undefined,
     replyPrefix: "",
     apiUrl: undefined,
@@ -129,6 +130,35 @@ test("bot authors are skipped while ignoreBots is on, and kept when off", async 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(on.forwarded.length, 0);
   assert.equal(off.forwarded.length, 1);
+});
+
+test("a bot named in allowedBots gets through while ignoreBots is on, case-insensitively", async () => {
+  const { intake, forwarded } = harness(baseConfig({ github: githubSettings([], ["Nightly-Automation"]) }));
+  assert.equal(intake(candidate({ author: "nightly-automation" }), { isBot: true }), true);
+  assert.equal(intake(candidate({ id: "two", author: "some-other-bot" }), { isBot: true }), false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 1);
+});
+
+test("allowedBots names a bot on one platform only", async () => {
+  const { intake, forwarded } = harness(baseConfig({ github: githubSettings([], ["nightly-automation"]) }));
+  assert.equal(intake(candidate({ platform: "linear", author: "nightly-automation" }), { isBot: true }), false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded.length, 0);
+});
+
+test("allowedBots exempts a bot from ignoreBots and nothing else", async () => {
+  const ignored = harness(
+    baseConfig({ ignoreAuthors: ["nightly-automation"], github: githubSettings([], ["nightly-automation"]) }),
+  );
+  assert.equal(ignored.intake(candidate({ author: "nightly-automation" }), { isBot: true }), false);
+
+  const narrowed = harness(baseConfig({ github: githubSettings(["suchipi"], ["nightly-automation"]) }));
+  assert.equal(narrowed.intake(candidate({ author: "nightly-automation" }), { isBot: true }), false);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(ignored.forwarded.length, 0);
+  assert.equal(narrowed.forwarded.length, 0);
 });
 
 test("ignoreAuthors matches regardless of case", async () => {

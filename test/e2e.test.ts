@@ -126,7 +126,11 @@ before(async () => {
       // Pinned so the guard does not reach for api.github.com/meta mid-test.
       github: { triggerPhrases: ["@my-bot"], allowedSources: ["203.0.113.0/24"] },
       linear: { triggerPhrases: ["@my-bot"] },
-      slack: { apiUrl: stub.url, triggerPhrases: ["@my-bot"] },
+      slack: {
+        apiUrl: stub.url,
+        triggerPhrases: ["@my-bot"],
+        allowedBots: ["Nightly Automation", "B222NAMELESS", "B444BYID"],
+      },
       logPayloads: true,
     }),
   );
@@ -482,6 +486,84 @@ test("leaves a channel message that both mentions the bot and carries the phrase
 
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(records().length, before, "Slack sends app_mention for this one as well, so it must not double up");
+});
+
+test("forwards a mention from a bot on allowedBots, under the name Slack gave it", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvBot1", {
+    type: "app_mention",
+    channel: "C789",
+    bot_id: "B111NIGHTLY",
+    bot_profile: { id: "B111NIGHTLY", name: "Nightly Automation", app_id: "A111", team_id: "T123" },
+    text: "<@U999BOT> run the nightly pass",
+    ts: "1700000008.000900",
+    event_ts: "1700000008.000900",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await waitFor(() => records().length === before + 1, "the allowed bot's mention to be forwarded");
+  const record = records().at(-1);
+  assert.ok(record);
+  assert.equal(
+    record.stdin.author,
+    "Nightly Automation",
+    "a bot has no user id to resolve, so its own name is the author",
+  );
+  assert.equal(record.stdin.prompt, "run the nightly pass");
+});
+
+test("falls back to the bot id when Slack names the bot in no other way", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvBot2", {
+    type: "app_mention",
+    channel: "C789",
+    bot_id: "B222NAMELESS",
+    text: "<@U999BOT> run the other pass",
+    ts: "1700000009.001000",
+    event_ts: "1700000009.001000",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await waitFor(() => records().length === before + 1, "the nameless bot's mention to be forwarded");
+  const record = records().at(-1);
+  assert.ok(record);
+  assert.equal(record.stdin.author, "B222NAMELESS");
+});
+
+test("matches a named bot by its bot id too, since Slack sends whichever it has", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvBot4", {
+    type: "app_mention",
+    channel: "C789",
+    bot_id: "B444BYID",
+    bot_profile: { id: "B444BYID", name: "Renamed Yesterday", app_id: "A444", team_id: "T123" },
+    text: "<@U999BOT> run the third pass",
+    ts: "1700000011.001200",
+    event_ts: "1700000011.001200",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await waitFor(() => records().length === before + 1, "the bot listed by id to be forwarded");
+  const record = records().at(-1);
+  assert.ok(record);
+  assert.equal(record.stdin.author, "Renamed Yesterday", "the name is still what the command is told");
+});
+
+test("ignores a mention from a bot that is not on allowedBots", async () => {
+  const before = records().length;
+  const body = slackEnvelope("EvBot3", {
+    type: "app_mention",
+    channel: "C789",
+    bot_id: "B333OTHER",
+    bot_profile: { id: "B333OTHER", name: "Some Other App", app_id: "A333", team_id: "T123" },
+    text: "<@U999BOT> run something nobody asked for",
+    ts: "1700000010.001100",
+    event_ts: "1700000010.001100",
+  });
+  assert.equal((await post("/slack/events", body, slackHeaders(body))).status, 200);
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(records().length, before, "ignoreBots still holds for every bot not named");
 });
 
 test("ignores channel messages with no trigger phrase, and edited DMs", async () => {

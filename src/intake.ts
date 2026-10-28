@@ -3,7 +3,7 @@ import type { SeenIds } from "./dedupe.ts";
 import type { Logger } from "./logger.ts";
 import type { KeyedQueue } from "./queue.ts";
 import type { ReplyMailbox, ReplyPoster } from "./reply.ts";
-import type { Mention } from "./types.ts";
+import type { Mention, Platform } from "./types.ts";
 
 /** What an adapter supplies: everything but the fields intake itself assigns. */
 export type Candidate = Omit<Mention, "receivedAt" | "replyFile"> & { postReply: ReplyPoster };
@@ -13,8 +13,15 @@ export type Delivery = { mention: Mention; postReply: ReplyPoster };
 
 export type Forward = (delivery: Delivery) => Promise<void>;
 
+/** What the adapter knows about who wrote it, beyond the author name on the candidate. */
+export type Source = {
+  isBot: boolean;
+  /** Slack names a bot's post two ways and sends whichever it has, so `allowedBots` accepts either. */
+  botId?: string;
+};
+
 /** Returns true when the mention was queued, so the caller knows whether to acknowledge it. */
-export type Intake = (candidate: Candidate, source: { isBot: boolean }) => boolean;
+export type Intake = (candidate: Candidate, source: Source) => boolean;
 
 /** Fields a platform fills in, all of which reach the command as text. */
 const TEXT_FIELDS = ["id", "kind", "url", "text", "prompt", "author", "title", "conversationKey"] as const;
@@ -38,6 +45,21 @@ function scrub(candidate: Candidate): { candidate: Candidate; changed: boolean }
   return { candidate: cleaned, changed };
 }
 
+function isAllowedBot(allowed: Set<string> | undefined, author: string, botId: string | undefined): boolean {
+  if (allowed === undefined || allowed.size === 0) return false;
+  return allowed.has(author.toLowerCase()) || (botId !== undefined && allowed.has(botId.toLowerCase()));
+}
+
+/** Lowercased on the way in, because every author list is compared case-insensitively. */
+function namesByPlatform(config: Config, setting: "allowedAuthors" | "allowedBots"): Map<Platform, Set<string>> {
+  return new Map(
+    (["github", "slack", "linear"] as const).map((platform) => [
+      platform,
+      new Set((config[platform]?.[setting] ?? []).map((name) => name.toLowerCase())),
+    ]),
+  );
+}
+
 export function createIntake(
   config: Config,
   queue: KeyedQueue,
@@ -47,12 +69,8 @@ export function createIntake(
   log: Logger,
 ): Intake {
   const ignored = new Set(config.ignoreAuthors.map((name) => name.toLowerCase()));
-  const allowed = new Map(
-    (["github", "slack", "linear"] as const).map((platform) => [
-      platform,
-      new Set((config[platform]?.allowedAuthors ?? []).map((name) => name.toLowerCase())),
-    ]),
-  );
+  const allowed = namesByPlatform(config, "allowedAuthors");
+  const allowedBots = namesByPlatform(config, "allowedBots");
 
   return (original, source) => {
     const { candidate, changed } = scrub(original);
@@ -64,8 +82,8 @@ export function createIntake(
       log.debug("ignoring duplicate delivery", { platform, id });
       return false;
     }
-    if (config.ignoreBots && source.isBot) {
-      log.debug("ignoring bot author", { platform, id, author });
+    if (config.ignoreBots && source.isBot && !isAllowedBot(allowedBots.get(platform), author, source.botId)) {
+      log.debug("ignoring bot author", { platform, id, author, botId: source.botId });
       return false;
     }
     if (ignored.has(author.toLowerCase())) {
