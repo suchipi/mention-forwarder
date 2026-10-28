@@ -257,6 +257,14 @@ test("ignores a GitHub comment with no trigger phrase", async () => {
   assert.equal(records().length, before);
 });
 
+test("ignores a GitHub comment whose only phrase is quoted as code", async () => {
+  const before = records().length;
+  const body = githubIssueComment("I ran it with `@my-bot retry the flaky test` and it worked");
+  assert.equal((await post("/github/webhooks", body, githubHeaders(body, "issue_comment", "gh-quoted"))).status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(records().length, before, "a reply quoting the phrase must not start another run");
+});
+
 test("drops a redelivery of the same GitHub event", async () => {
   const before = records().length;
   const body = githubIssueComment("@my-bot retry me");

@@ -245,7 +245,7 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
 | `linear.apiUrl` | Linear's own | Override the Linear GraphQL endpoint. For a local stub. |
 
-Trigger phrases are matched case-insensitively and only as whole tokens: `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`.
+Trigger phrases are matched case-insensitively and only as whole tokens: `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts either, so quoting one — ``say `@my-bot go` to start it`` — is how you write about the bot without summoning it.
 
 ## Platform setup
 
@@ -381,7 +381,7 @@ If you are not sure what a given person's value is, run once with `"logLevel": "
 
 A message written by a bot counts like anyone else's: a nightly schedule, a workflow, or another app posting "@your-bot do the thing" starts a run the same way a person would. Two things are dropped.
 
-**Your own posts**, where the forwarder can recognise them. On Slack it posts as your app, and an event carrying that app's bot id is skipped before either list below is consulted, so a reply of yours can never start a run. On GitHub and Linear it posts as whoever owns the token or the API key, which is usually you, and a webhook reports that account like any other — there is no app identity to match on. What protects those two is that `src/mentions.ts` defuses every mention in a reply on the way out, so a reply quoting "@your-bot" does not read as a mention when it comes back.
+**Your own posts**, where the forwarder can recognise them. On Slack it posts as your app, and an event carrying that app's bot id is skipped before either list below is consulted, so a reply of yours can never start a run. On GitHub and Linear it posts as whoever owns the token or the API key, which is usually you, and a webhook reports that account like any other — there is no app identity to match on. Two things protect those two instead. `src/mentions.ts` defuses every mention in a reply on the way out, so a reply quoting "@your-bot" does not read as a mention when it comes back; and a trigger phrase inside a code span or a fenced block never counts, which covers the one place defusing deliberately leaves alone.
 
 **Anyone on `ignoreAuthors`**, which is the list for a bot you want kept out:
 

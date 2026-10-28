@@ -28,7 +28,7 @@ const platformOverrides = z.strictObject({
 const PHRASE_INTRO = "Phrases that count as a mention, such as `[\"@my-bot\"]`.";
 
 const PHRASE_MATCHING =
-  "Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`.";
+  "Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it.";
 
 const SOURCE_OVERRIDE =
   "Replaces the built-in list rather than adding to it, and an empty array turns the source check off entirely. The entry `\"...default\"` expands to the built-in list at the position you put it in, so `[\"...default\", \"10.0.0.1\"]` is the usual way to add one address without giving up the rest. Loopback always passes either way, which is what a tunnelled delivery arrives on.";

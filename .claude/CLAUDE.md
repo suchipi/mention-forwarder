@@ -55,7 +55,7 @@ Client addresses come from `req.ip` with Express `trust proxy` set from `trusted
 
 `src/mentions.ts` defuses mentions in every reply, because a reply is posted as the bot and usually quotes attacker-controlled text. Slack loses the angle brackets that make a mention live; GitHub and Linear get a zero-width space after the `@`, since neither offers a real escape. Code, links and URLs are skipped so nothing copy-pasteable is altered. Any new reply path must call the matching function.
 
-It is also what keeps a reply from starting a run of its own. A bot's post counts like anyone's, and only Slack can recognize ours: Bolt hands every handler the app's own `bot_id`, which `src/platforms/slack.ts` compares against. GitHub and Linear replies go out as whoever owns the token, which a webhook reports like any other author, so what stops the loop there is that a defused `@name` no longer matches a trigger phrase. A reply printing the phrase inside a code span keeps it live, since defusing deliberately skips code - the narrow case where a reply can re-trigger.
+It is also half of what keeps a reply from starting a run of its own. A bot's post counts like anyone's, and only Slack can recognize ours: Bolt hands every handler the app's own `bot_id`, which `src/platforms/slack.ts` compares against. GitHub and Linear replies go out as whoever owns the token, which a webhook reports like any other author, so what stops the loop there is that a defused `@name` no longer matches a trigger phrase. The other half is `src/trigger.ts`, which masks code spans and fenced blocks before matching: defusing skips code on purpose, so without that a reply quoting the phrase in backticks would come back live.
 
 ### `Mention` is a public interface
 

@@ -160,13 +160,13 @@
           "markdownDescription": "URL path GitHub posts webhooks to. Must start with `/`. Default: `/github/webhooks`."
         },
         "triggerPhrases": {
-          "description": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. Required while GitHub is enabled: a GitHub webhook never reports that a mention happened, so without a phrase every comment would fire the command.",
+          "description": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it. Required while GitHub is enabled: a GitHub webhook never reports that a mention happened, so without a phrase every comment would fire the command.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "markdownDescription": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. Required while GitHub is enabled: a GitHub webhook never reports that a mention happened, so without a phrase every comment would fire the command."
+          "markdownDescription": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it. Required while GitHub is enabled: a GitHub webhook never reports that a mention happened, so without a phrase every comment would fire the command."
         },
         "allowedAuthors": {
           "description": "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against.",
@@ -212,13 +212,13 @@
           "markdownDescription": "URL path Slack posts events to. Must start with `/`. Default: `/slack/events`."
         },
         "triggerPhrases": {
-          "description": "An optional second way in rather than a filter: a native `app_mention` always counts, and so does any message carrying one of these phrases, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. Reaching a plain message needs extra event subscriptions; a DM needs neither a mention nor a phrase. Default: none, so only a real mention counts.",
+          "description": "An optional second way in rather than a filter: a native `app_mention` always counts, and so does any message carrying one of these phrases, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it. Reaching a plain message needs extra event subscriptions; a DM needs neither a mention nor a phrase. Default: none, so only a real mention counts.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "markdownDescription": "An optional second way in rather than a filter: a native `app_mention` always counts, and so does any message carrying one of these phrases, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. Reaching a plain message needs extra event subscriptions; a DM needs neither a mention nor a phrase. Default: none, so only a real mention counts."
+          "markdownDescription": "An optional second way in rather than a filter: a native `app_mention` always counts, and so does any message carrying one of these phrases, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it. Reaching a plain message needs extra event subscriptions; a DM needs neither a mention nor a phrase. Default: none, so only a real mention counts."
         },
         "allowedAuthors": {
           "description": "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against.",
@@ -264,13 +264,13 @@
           "markdownDescription": "URL path Linear posts webhooks to. Must start with `/`. Default: `/linear/webhooks`."
         },
         "triggerPhrases": {
-          "description": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. Required while Linear is enabled: a Linear webhook never reports that a mention happened, so without a phrase every comment would fire the command.",
+          "description": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it. Required while Linear is enabled: a Linear webhook never reports that a mention happened, so without a phrase every comment would fire the command.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "markdownDescription": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. Required while Linear is enabled: a Linear webhook never reports that a mention happened, so without a phrase every comment would fire the command."
+          "markdownDescription": "Phrases that count as a mention, such as `[\"@my-bot\"]`. Matched case-insensitively and only as whole tokens, so `@my-bot` fires on `hey @my-bot, look` but not on `@my-botswana`, `@my-bot-2`, or `me@my-bot`. A phrase inside a code span or a fenced block never counts, so quoting one is how you write about the bot without summoning it. Required while Linear is enabled: a Linear webhook never reports that a mention happened, so without a phrase every comment would fire the command."
         },
         "allowedAuthors": {
           "description": "Only these authors may trigger the command on this platform. Absent or empty means anyone may, which on a public repo means anyone who can leave a comment. Compared case-insensitively against one string per platform: a GitHub login, a Slack display name, or a Linear user name. Run with `\"logLevel\": \"debug\"` and read the `author=` field to see the exact string it is compared against.",

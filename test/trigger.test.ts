@@ -29,6 +29,29 @@ test("strip preserves indentation in the rest of the body", () => {
   assert.equal(matcher.strip(body), "make this pass:\n\n```js\n  if (x) {\n    return 1;\n  }\n```");
 });
 
+test("a phrase inside a code span does not count as a mention", () => {
+  assert.ok(!matcher.test("say `@my-bot go` to start it"));
+  assert.ok(!matcher.test("double ``@my-bot`` backticks too"));
+  assert.equal(matcher.strip("say `@my-bot go` to start it"), "say `@my-bot go` to start it");
+});
+
+test("a phrase inside a fenced block does not count as a mention", () => {
+  const body = "here is the command:\n\n```\n@my-bot fix the flaky test\n```";
+  assert.ok(!matcher.test(body));
+  assert.equal(matcher.strip(body), body);
+});
+
+test("a phrase outside code still counts, and the code beside it survives", () => {
+  assert.ok(matcher.test("@my-bot run `npm test`"));
+  assert.equal(matcher.strip("@my-bot run `npm test`"), "run `npm test`");
+  assert.equal(matcher.strip("@my-bot `npm test`"), "`npm test`", "the space before a code span is not its own");
+  assert.equal(
+    matcher.strip("`@my-bot` is the phrase, @my-bot do it"),
+    "`@my-bot` is the phrase, do it",
+    "the quoted one stays, the live one goes",
+  );
+});
+
 test("phrases containing regex metacharacters are matched literally", () => {
   const bracketed = createTriggerMatcher(["@my-app[bot]"]);
   assert.ok(bracketed.test("ping @my-app[bot] now"));
