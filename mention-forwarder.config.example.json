@@ -30,6 +30,7 @@
       "2606:50c0::/32"
     ],
     "replyPrefix": "",
+    "collapsedReplyCharacterCountThreshold": 500,
     "apiUrl": "https://api.github.com"
   },
   "slack": {

@@ -43,6 +43,14 @@ const githubOverrides = platformOverrides.extend({
   allowedSources: platformOverrides.shape.allowedSources.describe(
     `Addresses or CIDR ranges GitHub's webhooks may arrive from. ${SOURCE_OVERRIDE} Setting it without \`"...default"\` also pins the list: the startup fetch and the daily refresh both stop, so a rotated GitHub range starts coming back \`403\` until you edit this. Leaving \`"...default"\` in the array keeps the refresh running instead, re-expanding it against the ranges just fetched. Default: the hook ranges read from \`api.github.com/meta\` at startup and once a day after.`,
   ),
+  collapsedReplyCharacterCountThreshold: z
+    .number()
+    .int()
+    .min(-1)
+    .optional()
+    .describe(
+      "Collapse a reply longer than this many characters behind a `<details>` toggle that reads `Expand to read full response`, so one long answer does not bury the rest of the thread. `0` collapses every reply however short it is, and `-1` turns the folding off. Only what the command wrote is measured and tucked away: `replyPrefix` is posted in front of the toggle, where it is read without expanding anything. Each post is measured on its own, so under `per-conversation` a batch is collapsed only when that batch is long enough by itself. Only GitHub has this setting, since a `<details>` block is part of the Markdown GitHub renders in a comment. Default: `500`.",
+    ),
   /** Override the GitHub API base URL; for GitHub Enterprise Server or a local stub. */
   apiUrl: z
     .string()
@@ -288,6 +296,8 @@ type CommonSettings = {
 export type GitHubSettings = CommonSettings & {
   webhookSecret: string;
   auth: GitHubAuth;
+  /** Replies longer than this are collapsed behind a `<details>` toggle. `0` collapses every one, `-1` none. */
+  collapsedReplyCharacterCountThreshold: number;
 };
 
 export type SlackSettings = CommonSettings & {
@@ -456,6 +466,7 @@ export function loadConfig(path: string): Config {
             allowedAuthors: file.github?.allowedAuthors ?? [],
             allowedSources: file.github?.allowedSources,
             replyPrefix: file.github?.replyPrefix ?? "",
+            collapsedReplyCharacterCountThreshold: file.github?.collapsedReplyCharacterCountThreshold ?? 500,
             webhookSecret: githubSecret,
             auth: readGitHubAuth(),
             apiUrl: file.github?.apiUrl,

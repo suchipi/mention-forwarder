@@ -191,6 +191,13 @@
           "type": "string",
           "markdownDescription": "Text put in front of every reply posted on this platform: a disclaimer, an attribution, whatever has to lead each one. Set it per platform, since what a reply needs in front of it differs by where it lands. It is joined to the reply exactly as written, with nothing added in between, so a prefix meant to stand as its own paragraph has to end in a blank line of its own: `\"> Written by an AI agent.\\n\\n\"`. It goes in front of each post rather than each mention, so under `per-conversation` every streamed batch carries one, and it is defused along with the rest of the reply, so an `@name` in it notifies nobody. Silence still wins over it: a command that writes nothing to its reply file posts nothing at all, prefix or no prefix. Default: none, so a reply goes out exactly as the command wrote it."
         },
+        "collapsedReplyCharacterCountThreshold": {
+          "description": "Collapse a reply longer than this many characters behind a `<details>` toggle that reads `Expand to read full response`, so one long answer does not bury the rest of the thread. `0` collapses every reply however short it is, and `-1` turns the folding off. Only what the command wrote is measured and tucked away: `replyPrefix` is posted in front of the toggle, where it is read without expanding anything. Each post is measured on its own, so under `per-conversation` a batch is collapsed only when that batch is long enough by itself. Only GitHub has this setting, since a `<details>` block is part of the Markdown GitHub renders in a comment. Default: `500`.",
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 9007199254740991,
+          "markdownDescription": "Collapse a reply longer than this many characters behind a `<details>` toggle that reads `Expand to read full response`, so one long answer does not bury the rest of the thread. `0` collapses every reply however short it is, and `-1` turns the folding off. Only what the command wrote is measured and tucked away: `replyPrefix` is posted in front of the toggle, where it is read without expanding anything. Each post is measured on its own, so under `per-conversation` a batch is collapsed only when that batch is long enough by itself. Only GitHub has this setting, since a `<details>` block is part of the Markdown GitHub renders in a comment. Default: `500`."
+        },
         "apiUrl": {
           "description": "Override the GitHub API base URL, for GitHub Enterprise Server or a local stub. Any value other than `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. Default: GitHub's own.",
           "type": "string",

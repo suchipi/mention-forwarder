@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
 const CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const SECRET = "reply-routing-secret";
 const PREFIX = "> posted by a bot\n\n";
+// Low enough that one test's reply crosses it while every other one stays under, which is what proves the threshold.
+const COLLAPSE_OVER = 60;
 
 type Call = { method: string; path: string; body: unknown };
 
@@ -96,7 +98,12 @@ process.stdin.on("end", () => {
       command: ["node", responder],
       port,
       logLevel: "info",
-      github: { triggerPhrases: ["@my-bot"], apiUrl: stub.url, replyPrefix: PREFIX },
+      github: {
+        triggerPhrases: ["@my-bot"],
+        apiUrl: stub.url,
+        replyPrefix: PREFIX,
+        collapsedReplyCharacterCountThreshold: COLLAPSE_OVER,
+      },
     }),
   );
   writeFileSync(join(workspace, ".env"), `GITHUB_WEBHOOK_SECRET=${SECRET}\nGITHUB_TOKEN=ghp-stub-token\n`);
@@ -210,6 +217,32 @@ test("a commit comment mention is answered on the commit", async () => {
   const [call] = replyCalls();
   assert.ok(call);
   assert.equal(call.path, "/repos/acme/widgets/commits/abc123def456/comments");
+});
+
+test("a reply past collapsedReplyCharacterCountThreshold is folded away, with the prefix left outside it", async () => {
+  apiCalls = [];
+  const prompt = "write out the whole plan, every step of it, with nothing left implied";
+  await deliver("issue_comment", "ic-long", {
+    action: "created",
+    comment: {
+      id: 902,
+      body: `@my-bot ${prompt}`,
+      html_url: "https://github.com/acme/widgets/issues/9#issuecomment-902",
+      node_id: "IC_902",
+      user: { login: "suchipi", type: "User" },
+    },
+    issue: { number: 9, title: "Long" },
+    repository,
+  });
+
+  await waitFor(() => replyCalls().length > 0, "the reply to be posted");
+  const [call] = replyCalls();
+  assert.ok(call);
+  const written = `on it: ${prompt}`;
+  assert.ok(written.length > COLLAPSE_OVER, "the fixture reply has to be long enough to cross the threshold");
+  assert.deepEqual(call.body, {
+    body: `${PREFIX}<details>\n<summary>Expand to read full response</summary>\n\n${written}\n\n</details>`,
+  });
 });
 
 test("a command that writes nothing posts no reply", async () => {

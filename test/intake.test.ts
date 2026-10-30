@@ -63,6 +63,7 @@ function githubSettings(allowedAuthors: string[]): NonNullable<Config["github"]>
     allowedAuthors,
     allowedSources: undefined,
     replyPrefix: "",
+    collapsedReplyCharacterCountThreshold: 0,
     apiUrl: undefined,
     webhookSecret: "s",
     auth: { kind: "none" },

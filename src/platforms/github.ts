@@ -101,6 +101,14 @@ type Place = {
   reply: ReplyPlan;
 };
 
+const COLLAPSE_SUMMARY = "Expand to read full response";
+
+/** GitHub renders the Markdown inside a `<details>` only when blank lines hold it apart from the tags. */
+export function collapseIfOver(written: string, threshold: number): string {
+  if (threshold < 0 || written.length <= threshold) return written;
+  return `<details>\n<summary>${COLLAPSE_SUMMARY}</summary>\n\n${written}\n\n</details>`;
+}
+
 export function createGitHubMiddleware(
   settings: GitHubSettings,
   reactionContent: string | undefined,
@@ -200,7 +208,9 @@ export function createGitHubMiddleware(
     }
     const { owner, repo } = place;
     const plan = place.reply;
-    const body = neutralizeMarkdownMentions(settings.replyPrefix + written);
+    const body = neutralizeMarkdownMentions(
+      settings.replyPrefix + collapseIfOver(written, settings.collapsedReplyCharacterCountThreshold),
+    );
     switch (plan.via) {
       case "issueComment":
         await api.rest.issues.createComment({ owner, repo, issue_number: plan.issueNumber, body });

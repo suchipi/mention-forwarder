@@ -46,6 +46,7 @@ function github(allowedSources: string[] | undefined): GitHubSettings {
     allowedAuthors: [],
     allowedSources,
     replyPrefix: "",
+    collapsedReplyCharacterCountThreshold: 0,
     apiUrl: undefined,
     webhookSecret: "s",
     auth: { kind: "none" },

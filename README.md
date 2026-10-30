@@ -197,6 +197,33 @@ The prefix is joined to the reply exactly as written, with nothing added in betw
 
 It goes in front of each *post* rather than each mention, so under `per-conversation` every debounced batch carries its own copy. It is defused on the way out like the rest of the reply, so an `@name` inside it notifies nobody. And it never breaks silence: a command that writes nothing to its reply file still posts nothing at all.
 
+### Collapsing a long reply on GitHub
+
+An agent's answer can run long enough to bury the issue it was posted on, so a GitHub reply over 500 characters is folded into a `<details>` block and arrives as one line a reader opens when they want it. `github.collapsedReplyCharacterCountThreshold` moves that length:
+
+```json
+{
+  "github": { "collapsedReplyCharacterCountThreshold": 2000 }
+}
+```
+
+The toggle always reads *Expand to read full response*, and `replyPrefix` is put in front of it rather than inside, so a disclaimer is still read without expanding anything:
+
+```markdown
+> The following message was written by an AI agent, not by Lily Skye.
+
+<details>
+<summary>Expand to read full response</summary>
+
+...the reply...
+
+</details>
+```
+
+Only what your command wrote counts towards the length, and each post is measured on its own, so under `per-conversation` a batch is collapsed when that batch is long by itself. Set it to `0` and every reply is folded away however short it is; set it to `-1` and none ever is.
+
+Only GitHub has this setting, since `<details>` is part of the Markdown it renders in a comment.
+
 ## Config reference
 
 Everything lives in `mention-forwarder.config.json`. Only `command` is required.
@@ -241,6 +268,7 @@ The path is relative to the config file, and a URL works too if yours lives some
 | `<platform>.allowedAuthors` | `[]` | Only these authors may trigger the command on that platform. Empty means anyone may. Matched case-insensitively; [What `allowedAuthors` matches](#what-allowedauthors-matches) says exactly which name each platform hands over. |
 | `<platform>.allowedSources` | its published ranges | Addresses or CIDR ranges that platform's webhooks may arrive from. Replaces the built-in list; an empty list means no source check at all, and loopback always passes either way. The entry `"...default"` expands to the built-in list where you put it, so `["...default", "10.0.0.1"]` adds one address without giving up the rest. Setting the GitHub one also pins it, stopping the daily refresh, unless `"...default"` is in the list. See [Who can reach it](#who-can-reach-it). |
 | `<platform>.replyPrefix` | *none* | Text put in front of every reply posted on that platform. Joined exactly as written, so end it with `\n\n` if it should stand as its own paragraph. See [Putting a prefix on every reply](#putting-a-prefix-on-every-reply). |
+| `github.collapsedReplyCharacterCountThreshold` | `500` | Collapse a GitHub reply longer than this many characters behind an *Expand to read full response* toggle, leaving `replyPrefix` outside it. `0` collapses every reply, `-1` collapses none. See [Collapsing a long reply on GitHub](#collapsing-a-long-reply-on-github). |
 | `github.apiUrl` | GitHub's own | Override the GitHub API base URL. For GitHub Enterprise Server or a local stub. Any value but `https://api.github.com` also lifts Octokit's write pacing, which is there for github.com's own rate limits. |
 | `slack.apiUrl` | Slack's own | Override the Slack API base URL. For Enterprise Grid or a local stub. |
 | `linear.apiUrl` | Linear's own | Override the Linear GraphQL endpoint. For a local stub. |
